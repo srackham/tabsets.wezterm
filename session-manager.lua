@@ -1,4 +1,3 @@
--- TODO: Save and restore tab names
 -- TODO: Activate the first pane in each tab
 
 local wezterm = require("wezterm")
@@ -44,6 +43,7 @@ local function retrieve_workspace_data(window)
   for _, tab in ipairs(window:mux_window():tabs()) do
     local tab_data = {
       tab_id = tostring(tab:tab_id()),
+      title = tab:get_title(),
       panes = {}
     }
 
@@ -137,6 +137,7 @@ local function recreate_workspace(window, workspace_data)
     local cwd_path = extract_path_from_dir(cwd_uri)
 
     local new_tab = window:mux_window():spawn_tab({ cwd = cwd_path })
+    new_tab:set_title(tab_data.title)
     if not new_tab then
       wezterm.log_info("Failed to create a new tab.")
       break
