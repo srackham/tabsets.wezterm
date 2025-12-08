@@ -1,6 +1,28 @@
+-- TODO: Save and restore tab names
+-- TODO: Activate the first pane in each tab
+
 local wezterm = require("wezterm")
 local session_manager = {}
 local os = wezterm.target_triple
+
+-- Returns true if at shell prompt.
+local function pane_is_shell(pane)
+  local proc = pane:get_foreground_process_name() or ""
+  return proc:match("bash$") or
+      proc:match("zsh$") or
+      proc:match("fish$") or
+      proc:match("nu$") or
+      proc:match("cmd\\.exe$") or
+      proc:match("powershell\\.exe$") or
+      proc:match("pwsh\\.exe$")
+end
+
+-- Equivalent to POSIX basename(3)
+-- Given "/foo/bar" returns "bar"
+-- Given "c:\\foo\\bar" returns "bar"
+local function basename(s)
+  return string.gsub(s, '(.*[/\\])(.*)', '%2')
+end
 
 --- Displays a notification in WezTerm.
 -- @param message string: The notification message to be displayed.
@@ -145,16 +167,9 @@ local function recreate_workspace(window, workspace_data)
         break
       end
 
-      -- Restore TTY for Neovim on Linux
-      -- NOTE: cwd is handled differently on windows. maybe extend functionality for windows later
-      -- This could probably be handled better in general
+      -- NOTE: cwd is handled differently on windows (TODO: explain why?). maybe extend functionality for windows later
       if not (os == "x86_64-pc-windows-msvc") then
-        if not (os == "x86_64-pc-windows-msvc") and pane_data.tty:sub(- #"/bin/nvim") == "/bin/nvim" then
-          new_pane:send_text(pane_data.tty .. " ." .. "\n")
-        else
-          -- TODO - With running npm commands (e.g a running web client) this seems to execute Node, without the arguments
-          new_pane:send_text(pane_data.tty .. "\n")
-        end
+        new_pane:send_text(pane_data.tty .. "\n")
       end
     end
   end
