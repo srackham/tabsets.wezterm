@@ -1,5 +1,3 @@
--- TODO: Activate the first pane in each tab
-
 local wezterm = require("wezterm")
 local session_manager = {}
 local os = wezterm.target_triple
@@ -147,10 +145,12 @@ local function recreate_workspace(window, workspace_data)
     new_tab:activate()
 
     -- Recreate panes within this tab
+    local first_pane
     for j, pane_data in ipairs(tab_data.panes) do
       local new_pane
       if j == 1 then
-        new_pane = new_tab:active_pane()
+        first_pane = new_tab:active_pane()
+        new_pane = first_pane
       else
         local direction = 'Right'
         if pane_data.left == tab_data.panes[j - 1].left then
@@ -173,6 +173,7 @@ local function recreate_workspace(window, workspace_data)
         new_pane:send_text(pane_data.tty .. "\n")
       end
     end
+    first_pane:activate()
   end
 
   wezterm.log_info("Workspace recreated with new tabs and panes based on saved state.")
