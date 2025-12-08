@@ -1,10 +1,19 @@
 local wezterm = require("wezterm")
+local act = wezterm.action
 local M = {}
 local os = wezterm.target_triple
 
+
+local function session_dir()
+  return wezterm.home_dir .. "/.config/wezterm/wezterm-session-manager"
+end
+
+local function session_file(name)
+  return session_dir() .. "/wezterm_state_" .. name .. ".json"
+end
+
 -- Returns true if at shell prompt.
-local function pane_is_shell(pane)
-  local proc = pane:get_foreground_process_name() or ""
+local function is_shell(proc)
   return proc:match("bash$") or
       proc:match("zsh$") or
       proc:match("fish$") or
@@ -23,9 +32,10 @@ end
 
 --- Displays a notification in WezTerm.
 -- @param message string: The notification message to be displayed.
-local function display_notification(message)
+local function display_notification(window, message)
   wezterm.log_info(message)
-  -- Additional code to display a GUI notification can be added here if needed
+  window:toast_notification("WezTerm Session Manager", message, nil, 4000)
+  -- wezterm.run_child_process { 'bash', '-c', "notify-send -a 'Wezterm Session Manager' -t 4000 -u normal '" .. message:gsub("'", "'\"'\"'") .. "'" }
 end
 
 --- Retrieves the current workspace data from the active window.
@@ -122,8 +132,8 @@ local function recreate_workspace(window, workspace_data)
   local foreground_process = initial_pane:get_foreground_process_name()
 
   -- Check if the foreground process is a shell
-  if foreground_process:find("sh") or foreground_process:find("cmd.exe") or foreground_process:find("powershell.exe") or foreground_process:find("pwsh.exe") or foreground_process:find("nu") then
-    -- Safe to close
+  -- if foreground_process:find("sh") or foreground_process:find("cmd.exe") or foreground_process:find("powershell.exe") or foreground_process:find("pwsh.exe") or foreground_process:find("nu") then
+  if is_shell(foreground_process) then
     initial_pane:send_text("exit\r")
   else
     wezterm.log_info("Active program detected. Skipping exit command for initial pane.")
@@ -201,50 +211,72 @@ local function load_from_json_file(file_path)
 end
 
 --- Loads the saved json file matching the current workspace.
-function M.restore_state(window)
-  local workspace_name = window:active_workspace()
-  local file_path = wezterm.home_dir ..
-      "/.config/wezterm/wezterm-session-manager/wezterm_state_" .. workspace_name .. ".json"
+function M.restore_state(window, name)
+  name = name or "default"
+  local file_path = session_file(name)
 
   local workspace_data = load_from_json_file(file_path)
   if not workspace_data then
-    window:toast_notification('WezTerm',
-      'Workspace state file not found for workspace: ' .. workspace_name, nil, 4000)
+    display_notification(window, 'Workspace state file not found for workspace: ' .. name .. "'")
     return
   end
 
   if recreate_workspace(window, workspace_data) then
-    window:toast_notification('WezTerm', 'Workspace state loaded for workspace: ' .. workspace_name,
-      nil, 4000)
+    display_notification(window, 'Workspace state loaded for workspace: ' .. name .. "'")
   else
-    window:toast_notification('WezTerm', 'Workspace state loading failed for workspace: ' .. workspace_name,
-      nil, 4000)
+    display_notification(window, 'Workspace state loading failed for workspace: ' .. name .. "'")
   end
 end
 
 --- Allows to select which workspace to load
 function M.load_state(window)
-  -- TODO: Implement
-  -- Placeholder for user selection logic
-  -- ...
-  -- TODO: Call the function recreate_workspace(workspace_data) to recreate the workspace
-  -- Placeholder for recreation logic...
+  -- Collect state names
+  local choices = {}
+  local files = wezterm.read_dir(session_dir())
+  for _, f in ipairs(files) do
+    f = basename(f)
+    if f:match("^wezterm_state_") then -- FIXME: hard-coded state file name
+      local name = f:sub(15, -6)
+      table.insert(choices, { id = name, label = name })
+    end
+  end
+
+  if #choices == 0 then
+    display_notification(window, 'No saved state files found.')
+    return
+  end
+
+  window:perform_action(act.InputSelector {
+    title = 'Select Session Name',
+    choices = choices,
+    action = wezterm.action_callback(function(_, _, id)
+      if id then
+        M.restore_state(window, id)
+      end
+    end),
+  }, window:active_pane())
 end
 
---- Orchestrator function to save the current workspace state.
--- Collects workspace data, saves it to a JSON file, and displays a notification.
+--- Save the current workspace state.
 function M.save_state(window)
   local data = retrieve_workspace_data(window)
 
-  -- Construct the file path based on the workspace name
-  local file_path = wezterm.home_dir .. "/.config/wezterm/wezterm-session-manager/wezterm_state_" .. data.name .. ".json"
-
-  -- Save the workspace data to a JSON file and display the appropriate notification
-  if save_to_json_file(data, file_path) then
-    window:toast_notification('WezTerm Session Manager', 'Workspace state saved successfully', nil, 4000)
-  else
-    window:toast_notification('WezTerm Session Manager', 'Failed to save workspace state', nil, 4000)
-  end
+  window:perform_action(act.PromptInputLine {
+    description = 'Enter session name',
+    initial_value = 'default',
+    action = wezterm.action_callback(function(_, _, name)
+      if not name:match("^[%w_-]+$") then
+        display_notification(window, "Invalid session name '" .. name .. "'")
+        return
+      end
+      local data_file = session_file(name)
+      if save_to_json_file(data, data_file) then
+        display_notification(window, "Session '" .. name .. "' saved successfully")
+      else
+        display_notification(window, "Failed to save '" .. data_file .. "'")
+      end
+    end),
+  }, window:active_pane())
 end
 
 return M
