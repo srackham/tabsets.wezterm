@@ -1,5 +1,5 @@
 local wezterm = require("wezterm")
-local session_manager = {}
+local M = {}
 local os = wezterm.target_triple
 
 -- Returns true if at shell prompt.
@@ -201,7 +201,7 @@ local function load_from_json_file(file_path)
 end
 
 --- Loads the saved json file matching the current workspace.
-function session_manager.restore_state(window)
+function M.restore_state(window)
   local workspace_name = window:active_workspace()
   local file_path = wezterm.home_dir ..
       "/.config/wezterm/wezterm-session-manager/wezterm_state_" .. workspace_name .. ".json"
@@ -223,7 +223,7 @@ function session_manager.restore_state(window)
 end
 
 --- Allows to select which workspace to load
-function session_manager.load_state(window)
+function M.load_state(window)
   -- TODO: Implement
   -- Placeholder for user selection logic
   -- ...
@@ -233,7 +233,7 @@ end
 
 --- Orchestrator function to save the current workspace state.
 -- Collects workspace data, saves it to a JSON file, and displays a notification.
-function session_manager.save_state(window)
+function M.save_state(window)
   local data = retrieve_workspace_data(window)
 
   -- Construct the file path based on the workspace name
@@ -247,4 +247,4 @@ function session_manager.save_state(window)
   end
 end
 
-return session_manager
+return M
