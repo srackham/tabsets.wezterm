@@ -138,8 +138,6 @@ local function recreate_workspace(window, workspace_data)
   local initial_pane = window:active_pane()
   local foreground_process = initial_pane:get_foreground_process_name()
 
-  -- Check if the foreground process is a shell
-  -- if foreground_process:find("sh") or foreground_process:find("cmd.exe") or foreground_process:find("powershell.exe") or foreground_process:find("pwsh.exe") or foreground_process:find("nu") then
   if is_shell(foreground_process) then
     initial_pane:send_text("exit\r")
   else
@@ -185,8 +183,7 @@ local function recreate_workspace(window, workspace_data)
         break
       end
 
-      -- NOTE: cwd is handled differently on windows (TODO: explain why?). maybe extend functionality for windows later
-      if not (os == "x86_64-pc-windows-msvc") then
+      if not is_shell(pane_data.tty) then
         new_pane:send_text(pane_data.tty .. "\n")
       end
     end
@@ -252,6 +249,8 @@ local function session_action(window, callback)
     return
   end
 
+  -- FIXME: sort choices
+
   window:perform_action(act.InputSelector {
     choices = choices,
     action = wezterm.action_callback(callback)
@@ -273,8 +272,6 @@ function M.delete_state(window)
   session_action(window,
     function(_, _, id)
       if id then
-        -- ERROR wezterm_gui::overlay::selector > while processing user-defined-10 event: runtime error: ...nfig/wezterm/wezterm-session-manager/session-manager.lua:277: attempt to call a nil value (field 'remove')
-        -- os.remove(session_file(id))
         wezterm.run_child_process { 'rm', '-f', session_file(id) }
         display_notification(window, "Deleted session '" .. id .. "'")
       end
