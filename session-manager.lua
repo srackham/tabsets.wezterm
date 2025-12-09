@@ -235,8 +235,7 @@ function M.restore_state(window, name)
   end
 end
 
---- Allows to select which workspace to load
-function M.load_state(window)
+local function session_action(window, callback)
   -- Collect state names
   local choices = {}
   local files = wezterm.read_dir(session_dir())
@@ -254,14 +253,32 @@ function M.load_state(window)
   end
 
   window:perform_action(act.InputSelector {
-    title = 'Select Session Name',
     choices = choices,
-    action = wezterm.action_callback(function(_, _, id)
+    action = wezterm.action_callback(callback)
+  }, window:active_pane())
+end
+
+--- Load selected session
+function M.load_state(window)
+  session_action(window,
+    function(_, _, id)
       if id then
         M.restore_state(window, id)
       end
-    end),
-  }, window:active_pane())
+    end)
+end
+
+--- Delete selected session
+function M.delete_state(window)
+  session_action(window,
+    function(_, _, id)
+      if id then
+        -- ERROR wezterm_gui::overlay::selector > while processing user-defined-10 event: runtime error: ...nfig/wezterm/wezterm-session-manager/session-manager.lua:277: attempt to call a nil value (field 'remove')
+        -- os.remove(session_file(id))
+        wezterm.run_child_process { 'rm', '-f', session_file(id) }
+        display_notification(window, "Deleted session '" .. id .. "'")
+      end
+    end)
 end
 
 --- Save the current workspace state.
