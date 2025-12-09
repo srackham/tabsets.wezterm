@@ -43,8 +43,12 @@ end
 -- @return table or nil: The workspace data table or nil if no active window is found.
 local function retrieve_workspace_data(window)
   local workspace_name = window:active_workspace()
+  local dims = window:get_dimensions()
   local workspace_data = {
     name = workspace_name,
+    pixel_width = dims.pixel_width,       -- the width of the window in pixels
+    pixel_height = dims.pixel_height,     -- the height of the window in pixels
+    is_full_screen = dims.is_full_screen, -- whether the window is in full screen mode
     tabs = {}
   }
 
@@ -128,6 +132,8 @@ local function recreate_workspace(window, workspace_data)
       "Restoration can only be performed in a window with a single tab and a single pane, to prevent accidental data loss.")
     return
   end
+
+  window:set_inner_size(workspace_data.pixel_width, workspace_data.pixel_height)
 
   local initial_pane = window:active_pane()
   local foreground_process = initial_pane:get_foreground_process_name()
