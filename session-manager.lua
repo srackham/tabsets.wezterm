@@ -34,8 +34,9 @@ end
 -- @param message string: The notification message to be displayed.
 local function display_notification(window, message)
   wezterm.log_info(message)
-  window:toast_notification("WezTerm Session Manager", message, nil, 4000)
-  -- wezterm.run_child_process { 'bash', '-c', "notify-send -a 'Wezterm Session Manager' -t 4000 -u normal '" .. message:gsub("'", "'\"'\"'") .. "'" }
+  -- FIXME: toast_notification does not time out, workaround by running `notify-send` CLI instead
+  -- window:toast_notification("WezTerm Session Manager", message, nil, 4000)
+  wezterm.run_child_process { 'bash', '-c', "notify-send -a 'Wezterm Session Manager' -t 4000 -u normal '" .. message:gsub("'", "'\"'\"'") .. "'" }
 end
 
 --- Retrieves the current workspace data from the active window.
@@ -196,7 +197,7 @@ end
 local function load_from_json_file(file_path)
   local file = io.open(file_path, "r")
   if not file then
-    wezterm.log_info("Failed to open file: " .. file_path)
+    wezterm.log_info("Failed to open file '" .. file_path .. "'")
     return nil
   end
 
@@ -205,7 +206,7 @@ local function load_from_json_file(file_path)
 
   local data = wezterm.json_parse(file_content)
   if not data then
-    wezterm.log_info("Failed to parse JSON data from file: " .. file_path)
+    wezterm.log_info("Failed to parse JSON data from file '" .. file_path .. "'")
   end
   return data
 end
@@ -217,14 +218,14 @@ function M.restore_state(window, name)
 
   local workspace_data = load_from_json_file(file_path)
   if not workspace_data then
-    display_notification(window, 'Workspace state file not found for workspace: ' .. name .. "'")
+    display_notification(window, "Workspace state file not found for workspace: '" .. name .. "'")
     return
   end
 
   if recreate_workspace(window, workspace_data) then
-    display_notification(window, 'Workspace state loaded for workspace: ' .. name .. "'")
+    display_notification(window, "Workspace state loaded for workspace '" .. name .. "'")
   else
-    display_notification(window, 'Workspace state loading failed for workspace: ' .. name .. "'")
+    display_notification(window, "Workspace state loading failed for workspace '" .. name .. "'")
   end
 end
 
