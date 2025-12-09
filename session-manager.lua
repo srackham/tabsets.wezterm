@@ -249,7 +249,14 @@ local function session_action(window, callback)
   end
 
   table.sort(choices, function(a, b)
-    return a.id < b.id
+    -- Ensure "default" is the first array item.
+    if a.id == "default" and b.id ~= "default" then
+      return true
+    elseif b.id == "default" and a.id ~= "default" then
+      return false
+    else
+      return a.id < b.id
+    end
   end)
 
   window:perform_action(act.InputSelector {
