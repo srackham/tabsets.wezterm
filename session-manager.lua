@@ -9,7 +9,7 @@ local function session_dir()
 end
 
 local function session_file(name)
-  return session_dir() .. "/wezterm_state_" .. name .. ".json"
+  return session_dir() .. "/tabset_" .. name .. ".json"
 end
 
 -- Equivalent to POSIX basename(3)
@@ -237,8 +237,8 @@ local function session_action(window, callback)
   local files = wezterm.read_dir(session_dir())
   for _, f in ipairs(files) do
     f = basename(f)
-    if f:match("^wezterm_state_") then -- FIXME: hard-coded state file name
-      local name = f:sub(15, -6)
+    if f:match("^tabset_") then
+      local name = f:sub(#"tabset_" + 1, -6)
       table.insert(choices, { id = name, label = name })
     end
   end
