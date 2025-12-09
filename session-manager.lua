@@ -12,31 +12,28 @@ local function session_file(name)
   return session_dir() .. "/wezterm_state_" .. name .. ".json"
 end
 
--- Returns true if at shell prompt.
-local function is_shell(proc)
-  return proc:match("bash$") or
-      proc:match("zsh$") or
-      proc:match("fish$") or
-      proc:match("nu$") or
-      proc:match("cmd\\.exe$") or
-      proc:match("powershell\\.exe$") or
-      proc:match("pwsh\\.exe$")
-end
-
 -- Equivalent to POSIX basename(3)
 -- Given "/foo/bar" returns "bar"
 -- Given "c:\\foo\\bar" returns "bar"
 local function basename(s)
-  return string.gsub(s, '(.*[/\\])(.*)', '%2')
+  return string.gsub(s, "(.*[/\\])(.*)", "%2")
+end
+
+-- Returns true if at shell prompt.
+local function is_shell(file_path)
+  local shells = { "sh", "bash", "zsh", "fish", "nu", "dash", "csh", "ksh" }
+  for _, shell in ipairs(shells) do
+    if basename(file_path) == shell then return true end
+  end
+  return false
 end
 
 --- Displays a notification in WezTerm.
--- @param message string: The notification message to be displayed.
 local function display_notification(window, message)
   wezterm.log_info(message)
   -- FIXME: toast_notification does not time out, workaround by running `notify-send` CLI instead
   -- window:toast_notification("WezTerm Session Manager", message, nil, 4000)
-  wezterm.run_child_process { 'bash', '-c', "notify-send -a 'Wezterm Session Manager' -t 4000 -u normal '" .. message:gsub("'", "'\"'\"'") .. "'" }
+  wezterm.run_child_process { "bash", "-c", "notify-send -a 'Wezterm Session Manager' -t 4000 -u normal '" .. message:gsub("'", "'\"'\"'") .. "'" }
 end
 
 --- Retrieves the current workspace data from the active window.
@@ -127,6 +124,7 @@ local function recreate_workspace(window, workspace_data)
 
   local tabs = window:mux_window():tabs()
 
+  -- FIXME: check this is working
   if #tabs ~= 1 or #tabs[1]:panes() ~= 1 then
     wezterm.log_info(
       "Restoration can only be performed in a window with a single tab and a single pane, to prevent accidental data loss.")
@@ -167,9 +165,9 @@ local function recreate_workspace(window, workspace_data)
         first_pane = new_tab:active_pane()
         new_pane = first_pane
       else
-        local direction = 'Right'
+        local direction = "Right"
         if pane_data.left == tab_data.panes[j - 1].left then
-          direction = 'Bottom'
+          direction = "Bottom"
         end
 
         new_pane = new_tab:active_pane():split({
@@ -228,6 +226,7 @@ function M.restore_state(window, name)
   if recreate_workspace(window, workspace_data) then
     display_notification(window, "Workspace state loaded for workspace '" .. name .. "'")
   else
+    -- FIXME: report the actual logged error: devise a better logging + notification system
     display_notification(window, "Workspace state loading failed for workspace '" .. name .. "'")
   end
 end
@@ -245,7 +244,7 @@ local function session_action(window, callback)
   end
 
   if #choices == 0 then
-    display_notification(window, 'No saved state files found.')
+    display_notification(window, "No saved session files found.")
     return
   end
 
@@ -274,7 +273,7 @@ function M.delete_state(window)
   session_action(window,
     function(_, _, id)
       if id then
-        wezterm.run_child_process { 'rm', '-f', session_file(id) }
+        wezterm.run_child_process { "rm", "-f", session_file(id) }
         display_notification(window, "Deleted session '" .. id .. "'")
       end
     end)
@@ -285,8 +284,8 @@ function M.save_state(window)
   local data = retrieve_workspace_data(window)
 
   window:perform_action(act.PromptInputLine {
-    description = 'Enter session name',
-    initial_value = 'default',
+    description = "Enter session name",
+    initial_value = "default",
     action = wezterm.action_callback(function(_, _, name)
       if not name:match("^[%w_-]+$") then
         display_notification(window, "Invalid session name '" .. name .. "'")
