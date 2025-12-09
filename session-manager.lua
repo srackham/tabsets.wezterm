@@ -249,7 +249,9 @@ local function session_action(window, callback)
     return
   end
 
-  -- FIXME: sort choices
+  table.sort(choices, function(a, b)
+    return a.id < b.id
+  end)
 
   window:perform_action(act.InputSelector {
     choices = choices,
