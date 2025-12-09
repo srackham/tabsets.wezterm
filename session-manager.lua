@@ -4,6 +4,11 @@ local M = {}
 local os = wezterm.target_triple
 
 
+-- Return truthy if name only contains alphanumeric and +- ._ characters
+local function is_valid_tabset_name(name)
+  return name:match("^[%w%+%.%-_%s]+$")
+end
+
 local function session_dir()
   return wezterm.home_dir .. "/.config/wezterm/wezterm-session-manager"
 end
@@ -112,7 +117,7 @@ local function recreate_workspace(window, workspace_data)
     elseif os == "x86_64-unknown-linux-gnu" then
       -- On Linux, transform 'file://{computer-name}/home/{user}/path/to/dir' to '/home/{user}/path/to/dir'
       return working_directory:gsub("^.*(/home/)", "/home/")
-    else
+    else -- MacOS
       return working_directory:gsub("^.*(/Users/)", "/Users/")
     end
   end
@@ -127,6 +132,7 @@ local function recreate_workspace(window, workspace_data)
   -- FIXME: check this is working
   if #tabs ~= 1 or #tabs[1]:panes() ~= 1 then
     wezterm.log_info(
+    -- TODO: What exactly does this mean?
       "Restoration can only be performed in a window with a single tab and a single pane, to prevent accidental data loss.")
     return
   end
@@ -139,7 +145,7 @@ local function recreate_workspace(window, workspace_data)
   if is_shell(foreground_process) then
     initial_pane:send_text("exit\r")
   else
-    wezterm.log_info("Active program detected. Skipping exit command for initial pane.")
+    wezterm.log_info("Initial pane left open because a running program was detected.")
   end
 
   -- Recreate tabs and panes from the saved state
@@ -294,8 +300,8 @@ function M.save_state(window)
     description = "Enter session name",
     initial_value = "default",
     action = wezterm.action_callback(function(_, _, name)
-      if not name:match("^[%w_-]+$") then
-        display_notification(window, "Invalid session name '" .. name .. "'")
+      if not is_valid_tabset_name(name) then
+        display_notification(window, "Invalid tabset name '" .. name .. "'")
         return
       end
       local data_file = session_file(name)
