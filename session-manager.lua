@@ -137,6 +137,7 @@ local function recreate_workspace(window, workspace_data)
     return
   end
 
+  -- Restore window size
   window:set_inner_size(workspace_data.pixel_width, workspace_data.pixel_height)
 
   local initial_pane = window:active_pane()
@@ -254,7 +255,7 @@ local function session_action(window, callback)
   for _, f in ipairs(files) do
     f = basename(f)
     if f:match("^tabset_") then
-      local name = f:sub(#"tabset_" + 1, -6)
+      local name = f:sub(#"tabset_" + 1, -1 - #".json")
       table.insert(choices, { id = name, label = name })
     end
   end
