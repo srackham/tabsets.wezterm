@@ -3,25 +3,30 @@ local act = wezterm.action
 local M = {}
 local os = wezterm.target_triple
 
+-- Equivalent to POSIX basename(3)
+-- Given "/foo/bar" returns "bar"
+-- Given "c:\\foo\\bar" returns "bar"
+local function basename(s)
+  return string.gsub(s, "(.*[/\\])(.*)", "%2")
+end
 
 -- Return truthy if name only contains alphanumeric and +- ._ characters
 local function is_valid_tabset_name(name)
   return name:match("^[%w%+%.%-_%s]+$")
 end
 
+local tabsets_dir
+
 local function get_tabsets_dir()
-  return wezterm.home_dir .. "/.config/wezterm/wezterm-session-manager/tabsets"
+  return tabsets_dir or wezterm.config_dir .. "/tabsets.wezterm"
+end
+
+local function set_tabsets_dir(dir)
+  tabsets_dir = dir
 end
 
 local function tabset_file(name)
   return get_tabsets_dir() .. "/" .. name .. ".tabset.json"
-end
-
--- Equivalent to POSIX basename(3)
--- Given "/foo/bar" returns "bar"
--- Given "c:\\foo\\bar" returns "bar"
-local function basename(s)
-  return string.gsub(s, "(.*[/\\])(.*)", "%2")
 end
 
 -- Returns true if at shell prompt.
@@ -318,6 +323,13 @@ function M.save_state(window)
       end
     end),
   }, window:active_pane())
+end
+
+function M.setup(opts)
+  opts = opts or {}
+  if opts.tabsets_dir then
+    set_tabsets_dir(opts.tabsets_dir)
+  end
 end
 
 return M
