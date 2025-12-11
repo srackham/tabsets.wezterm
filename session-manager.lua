@@ -131,25 +131,23 @@ local function recreate_workspace(window, workspace_data)
 
   local tabs = window:mux_window():tabs()
 
-  -- FIXME: check this is working
-  if #tabs ~= 1 or #tabs[1]:panes() ~= 1 then
-    wezterm.log_info(
-    -- TODO: What exactly does this mean?
-      "Restoration can only be performed in a window with a single tab and a single pane, to prevent accidental data loss.")
-    return
+  local is_empty_window = false
+  if #tabs == 1 and #tabs[1]:panes() == 1 then
+    local initial_pane = window:active_pane()
+    local foreground_process = initial_pane:get_foreground_process_name()
+    if is_shell(foreground_process) then
+      initial_pane:send_text("exit\r")
+      wezterm.log_info("Initial lone tab closed.")
+      is_empty_window = true
+    else
+      wezterm.log_info("Initial tab left open because a running program was detected.")
+    end
   end
 
-  -- Restore window size and colors
-  window:set_inner_size(workspace_data.pixel_width, workspace_data.pixel_height)
-  window:set_config_overrides({ colors = workspace_data.colors or {} })
-
-  local initial_pane = window:active_pane()
-  local foreground_process = initial_pane:get_foreground_process_name()
-
-  if is_shell(foreground_process) then
-    initial_pane:send_text("exit\r")
-  else
-    wezterm.log_info("Initial pane left open because a running program was detected.")
+  if is_empty_window then
+    -- Restore window size and colors
+    window:set_inner_size(workspace_data.pixel_width, workspace_data.pixel_height)
+    window:set_config_overrides({ colors = workspace_data.colors or {} })
   end
 
   -- Recreate tabs and panes from the saved state
