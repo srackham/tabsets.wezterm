@@ -329,6 +329,9 @@ function M.setup(opts)
   opts = opts or {}
   if opts.tabsets_dir then
     set_tabsets_dir(opts.tabsets_dir)
+  elseif not tabsets_dir then
+    -- Create default tabsets directory, makes intermediate directories and avoids errors if it already exists
+    wezterm.run_child_process({ "mkdir", "-p", get_tabsets_dir() })
   end
 end
 
