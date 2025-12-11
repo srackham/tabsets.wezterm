@@ -242,7 +242,11 @@ end
 local function session_action(window, callback)
   -- Collect state names
   local choices = {}
-  local files = wezterm.read_dir(get_tabsets_dir())
+  local ok, files = pcall(wezterm.read_dir, get_tabsets_dir())
+  if not ok then
+    display_notification(window, "Failed to read tabsets directory '" .. get_tabsets_dir() .. "'.")
+    return
+  end
   for _, f in ipairs(files) do
     f = basename(f)
     if f:match("%.tabset%.json$") then
