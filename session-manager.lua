@@ -9,12 +9,12 @@ local function is_valid_tabset_name(name)
   return name:match("^[%w%+%.%-_%s]+$")
 end
 
-local function session_dir()
-  return wezterm.home_dir .. "/.config/wezterm/wezterm-session-manager"
+local function get_tabsets_dir()
+  return wezterm.home_dir .. "/.config/wezterm/wezterm-session-manager/tabsets"
 end
 
-local function session_file(name)
-  return session_dir() .. "/tabset_" .. name .. ".json"
+local function tabset_file(name)
+  return get_tabsets_dir() .. "/" .. name .. ".tabset.json"
 end
 
 -- Equivalent to POSIX basename(3)
@@ -223,7 +223,7 @@ end
 --- Loads the saved json file matching the current workspace.
 function M.restore_state(window, name)
   name = name or "default"
-  local file_path = session_file(name)
+  local file_path = tabset_file(name)
 
   local workspace_data = load_from_json_file(file_path)
   if not workspace_data then
@@ -242,11 +242,11 @@ end
 local function session_action(window, callback)
   -- Collect state names
   local choices = {}
-  local files = wezterm.read_dir(session_dir())
+  local files = wezterm.read_dir(get_tabsets_dir())
   for _, f in ipairs(files) do
     f = basename(f)
-    if f:match("^tabset_") then
-      local name = f:sub(#"tabset_" + 1, -1 - #".json")
+    if f:match("%.tabset%.json$") then
+      local name = f:gsub("%.tabset%.json$", "")
       table.insert(choices, { id = name, label = name })
     end
   end
@@ -288,7 +288,7 @@ function M.delete_state(window)
   session_action(window,
     function(_, _, id)
       if id then
-        wezterm.run_child_process { "rm", "-f", session_file(id) }
+        wezterm.run_child_process { "rm", "-f", tabset_file(id) }
         display_notification(window, "Deleted session '" .. id .. "'")
       end
     end)
@@ -306,7 +306,7 @@ function M.save_state(window)
         display_notification(window, "Invalid tabset name '" .. name .. "'")
         return
       end
-      local data_file = session_file(name)
+      local data_file = tabset_file(name)
       if save_to_json_file(data, data_file) then
         display_notification(window, "Session '" .. name .. "' saved successfully")
       else
