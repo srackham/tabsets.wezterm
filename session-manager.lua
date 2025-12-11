@@ -153,13 +153,11 @@ local function recreate_workspace(window, workspace_data)
   end
 
   -- Recreate tabs and panes from the saved state
-  local first_tab
   for _, tab_data in ipairs(workspace_data.tabs) do
     local cwd_uri = tab_data.panes[1].cwd
     local cwd_path = extract_path_from_dir(cwd_uri)
 
     local new_tab = window:mux_window():spawn_tab({ cwd = cwd_path })
-    if not first_tab then first_tab = new_tab end
     new_tab:set_title(tab_data.title)
     if not new_tab then
       wezterm.log_info("Failed to create a new tab.")
@@ -199,14 +197,6 @@ local function recreate_workspace(window, workspace_data)
     end
     first_pane:activate()
   end
-
-  first_tab:activate() -- FIXME: why is this not being activated?
-  -- THIS DOESN'T WORK EITHER
-  -- wezterm.on("activate_first_tab", function()
-  --   wezterm.log_info("Executed: activate_first_tab")
-  --   first_tab:activate()
-  -- end)
-  -- wezterm.emit("activate_first_tab")
 
   wezterm.log_info("Workspace recreated with new tabs and panes based on saved state.")
   return true
