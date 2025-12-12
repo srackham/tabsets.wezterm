@@ -51,9 +51,8 @@ local function retrieve_tabset_data(window)
   local cfg = window:effective_config()
 
   local tabset_data = {
-    pixel_width = dims.pixel_width,       -- the width of the window in pixels
-    pixel_height = dims.pixel_height,     -- the height of the window in pixels
-    is_full_screen = dims.is_full_screen, -- whether the window is in full screen mode
+    pixel_width = dims.pixel_width,   -- the width of the window in pixels
+    pixel_height = dims.pixel_height, -- the height of the window in pixels
     colors = cfg.colors,
     tabs = {}
   }
@@ -61,7 +60,6 @@ local function retrieve_tabset_data(window)
   -- Iterate over tabs in the current window
   for _, tab in ipairs(window:mux_window():tabs()) do
     local tab_data = {
-      tab_id = tostring(tab:tab_id()),
       title = tab:get_title(),
       panes = {}
     }
@@ -70,16 +68,7 @@ local function retrieve_tabset_data(window)
     for _, pane_info in ipairs(tab:panes_with_info()) do
       -- Collect pane details, including layout and process information
       table.insert(tab_data.panes, {
-        pane_id = tostring(pane_info.pane:pane_id()),
-        index = pane_info.index,
-        is_active = pane_info.is_active,
-        is_zoomed = pane_info.is_zoomed,
         left = pane_info.left,
-        top = pane_info.top,
-        width = pane_info.width,
-        height = pane_info.height,
-        pixel_width = pane_info.pixel_width,
-        pixel_height = pane_info.pixel_height,
         cwd = tostring(pane_info.pane:get_current_working_dir()),
         tty = tostring(pane_info.pane:get_foreground_process_name())
       })
