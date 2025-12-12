@@ -1,7 +1,6 @@
 local wezterm = require("wezterm")
 local act = wezterm.action
 local M = {}
-local os = wezterm.target_triple
 
 -- Equivalent to POSIX basename(3)
 -- Given "/foo/bar" returns "bar"
@@ -115,16 +114,8 @@ end
 --- Recreates the tabset based on the provided data.
 -- @param tabset_data table: The data structure containing the saved tabset state.
 local function recreate_tabset(window, tabset_data)
-  local function extract_path_from_dir(working_directory)
-    if os == "x86_64-pc-windows-msvc" then
-      -- On Windows, transform 'file:///C:/path/to/dir' to 'C:/path/to/dir'
-      return working_directory:gsub("file:///", "")
-    elseif os == "x86_64-unknown-linux-gnu" then
-      -- On Linux, transform 'file://{computer-name}/home/{user}/path/to/dir' to '/home/{user}/path/to/dir'
-      return working_directory:gsub("^.*(/home/)", "/home/")
-    else -- MacOS
-      return working_directory:gsub("^.*(/Users/)", "/Users/")
-    end
+  local function extract_path_from_uri(uri)
+    return uri:gsub("^file://", "")
   end
 
   if not tabset_data or not tabset_data.tabs then
@@ -156,7 +147,7 @@ local function recreate_tabset(window, tabset_data)
   -- Recreate tabs and panes from the saved state
   for _, tab_data in ipairs(tabset_data.tabs) do
     local cwd_uri = tab_data.panes[1].cwd
-    local cwd_path = extract_path_from_dir(cwd_uri)
+    local cwd_path = extract_path_from_uri(cwd_uri)
 
     local new_tab = window:mux_window():spawn_tab({ cwd = cwd_path })
     new_tab:set_title(tab_data.title)
@@ -183,7 +174,7 @@ local function recreate_tabset(window, tabset_data)
 
         new_pane = new_tab:active_pane():split({
           direction = direction,
-          cwd = extract_path_from_dir(pane_data.cwd)
+          cwd = extract_path_from_uri(pane_data.cwd)
         })
       end
 
