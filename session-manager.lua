@@ -46,14 +46,12 @@ local function display_notification(window, message)
   wezterm.run_child_process { "bash", "-c", "notify-send -a 'Wezterm Session Manager' -t 4000 -u normal '" .. message:gsub("'", "'\"'\"'") .. "'" }
 end
 
---- Retrieves the current workspace data from the active window.
-local function retrieve_workspace_data(window)
-  local workspace_name = window:active_workspace()
+--- Retrieves the current tabset data from the active window.
+local function retrieve_tabset_data(window)
   local dims = window:get_dimensions()
   local cfg = window:effective_config()
 
-  local workspace_data = {
-    name = workspace_name,
+  local tabset_data = {
     pixel_width = dims.pixel_width,       -- the width of the window in pixels
     pixel_height = dims.pixel_height,     -- the height of the window in pixels
     is_full_screen = dims.is_full_screen, -- whether the window is in full screen mode
@@ -88,19 +86,19 @@ local function retrieve_workspace_data(window)
       })
     end
 
-    table.insert(workspace_data.tabs, tab_data)
+    table.insert(tabset_data.tabs, tab_data)
   end
 
-  return workspace_data
+  return tabset_data
 end
 
 --- Saves data to a JSON file.
--- @param data table: The workspace data to be saved.
+-- @param data table: The tabset data to be saved.
 -- @param file_path string: The file path where the JSON file will be saved.
 -- @return boolean: true if saving was successful, false otherwise.
 local function save_to_json_file(data, file_path)
   if not data then
-    wezterm.log_info("No workspace data to log.")
+    wezterm.log_info("No tabset data to log.")
     return false
   end
 
@@ -114,9 +112,9 @@ local function save_to_json_file(data, file_path)
   end
 end
 
---- Recreates the workspace based on the provided data.
--- @param workspace_data table: The data structure containing the saved workspace state.
-local function recreate_workspace(window, workspace_data)
+--- Recreates the tabset based on the provided data.
+-- @param tabset_data table: The data structure containing the saved tabset state.
+local function recreate_tabset(window, tabset_data)
   local function extract_path_from_dir(working_directory)
     if os == "x86_64-pc-windows-msvc" then
       -- On Windows, transform 'file:///C:/path/to/dir' to 'C:/path/to/dir'
@@ -129,8 +127,8 @@ local function recreate_workspace(window, workspace_data)
     end
   end
 
-  if not workspace_data or not workspace_data.tabs then
-    wezterm.log_info("Invalid or empty workspace data provided.")
+  if not tabset_data or not tabset_data.tabs then
+    wezterm.log_info("Invalid or empty tabset data provided.")
     return
   end
 
@@ -151,12 +149,12 @@ local function recreate_workspace(window, workspace_data)
 
   if is_empty_window then
     -- Restore window size and colors
-    window:set_inner_size(workspace_data.pixel_width, workspace_data.pixel_height)
-    window:set_config_overrides({ colors = workspace_data.colors or {} })
+    window:set_inner_size(tabset_data.pixel_width, tabset_data.pixel_height)
+    window:set_config_overrides({ colors = tabset_data.colors or {} })
   end
 
   -- Recreate tabs and panes from the saved state
-  for _, tab_data in ipairs(workspace_data.tabs) do
+  for _, tab_data in ipairs(tabset_data.tabs) do
     local cwd_uri = tab_data.panes[1].cwd
     local cwd_path = extract_path_from_dir(cwd_uri)
 
@@ -201,7 +199,7 @@ local function recreate_workspace(window, workspace_data)
     first_pane:activate()
   end
 
-  wezterm.log_info("Workspace recreated with new tabs and panes based on saved state.")
+  wezterm.log_info("Tabset recreated.")
   return true
 end
 
@@ -220,32 +218,32 @@ local function load_from_json_file(file_path)
 
   local data = wezterm.json_parse(file_content)
   if not data then
-    wezterm.log_info("Failed to parse JSON data from file '" .. file_path .. "'")
+    wezterm.log_info("Failed to parse JSON data from tabset file '" .. file_path .. "'")
   end
   return data
 end
 
---- Loads the saved json file matching the current workspace.
-function M.restore_state(window, name)
+--- Loads the saved json file corresponding to the tabset name.
+function M.load_tabset_by_name(window, name)
   name = name or "default"
   local file_path = tabset_file(name)
 
-  local workspace_data = load_from_json_file(file_path)
-  if not workspace_data then
-    display_notification(window, "Workspace state file not found for workspace: '" .. name .. "'")
+  local tabset_data = load_from_json_file(file_path)
+  if not tabset_data then
+    display_notification(window, "Tabset file not found '" .. file_path .. "'")
     return
   end
 
-  if recreate_workspace(window, workspace_data) then
-    display_notification(window, "Workspace state loaded for workspace '" .. name .. "'")
+  if recreate_tabset(window, tabset_data) then
+    display_notification(window, "Tabset loaded '" .. name .. "'")
   else
     -- FIXME: report the actual logged error: devise a better logging + notification system
-    display_notification(window, "Workspace state loading failed for workspace '" .. name .. "'")
+    display_notification(window, "Tabset loading failed '" .. name .. "'")
   end
 end
 
 local function session_action(window, callback)
-  -- Collect state names
+  -- Collect tabset names
   local choices = {}
   local ok, files = pcall(wezterm.read_dir, get_tabsets_dir())
   if not ok then
@@ -283,17 +281,17 @@ local function session_action(window, callback)
 end
 
 --- Load selected session
-function M.load_state(window)
+function M.load_tabset(window)
   session_action(window,
     function(_, _, id)
       if id then
-        M.restore_state(window, id)
+        M.load_tabset_by_name(window, id)
       end
     end)
 end
 
 --- Delete selected session
-function M.delete_state(window)
+function M.delete_tabset(window)
   session_action(window,
     function(_, _, id)
       if id then
@@ -303,9 +301,9 @@ function M.delete_state(window)
     end)
 end
 
---- Save the current workspace state.
-function M.save_state(window)
-  local data = retrieve_workspace_data(window)
+--- Save the current tabset state.
+function M.save_tabset(window)
+  local data = retrieve_tabset_data(window)
 
   window:perform_action(act.PromptInputLine {
     description = "Enter session name",
@@ -315,6 +313,7 @@ function M.save_state(window)
         display_notification(window, "Invalid tabset name '" .. name .. "'")
         return
       end
+      data.name = name
       local data_file = tabset_file(name)
       if save_to_json_file(data, data_file) then
         display_notification(window, "Session '" .. name .. "' saved successfully")
