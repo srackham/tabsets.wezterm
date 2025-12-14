@@ -2,16 +2,15 @@ local wezterm = require("wezterm")
 local act = wezterm.action
 local M = {}
 
--- Equivalent to POSIX basename(3)
 -- Given "/foo/bar" returns "bar"
 -- Given "c:\\foo\\bar" returns "bar"
 local function basename(s)
   return string.gsub(s, "(.*[/\\])(.*)", "%2")
 end
 
--- Return truthy if name only contains alphanumeric and +- ._ characters
+-- Returns true if name only contains alphanumeric and +- ._ characters
 local function is_valid_tabset_name(name)
-  return name:match("^[%w%+%.%-_%s]+$")
+  if name:match("^[%w%+%.%-_%s]+$") then return true else return false end
 end
 
 local tabsets_dir
@@ -28,7 +27,7 @@ local function tabset_file(name)
   return get_tabsets_dir() .. "/" .. name .. ".tabset.json"
 end
 
--- Returns true if at shell prompt.
+-- Returns true if file_path is a shell
 local function is_shell(file_path)
   local shells = { "sh", "bash", "zsh", "fish", "nu", "dash", "csh", "ksh" }
   for _, shell in ipairs(shells) do
@@ -61,12 +60,12 @@ local function resolve_executable(path)
   return nil
 end
 
---- Displays a notification in WezTerm.
+--- Logs a message and displays it with a desktop notification
 local function display_notification(window, message)
   wezterm.log_info(message)
   -- FIXME: toast_notification does not time out, workaround by running `notify-send` CLI instead
-  -- window:toast_notification("WezTerm Session Manager", message, nil, 4000)
-  wezterm.run_child_process { "bash", "-c", "notify-send -a 'Wezterm Session Manager' -t 4000 -u normal '" .. message:gsub("'", "'\"'\"'") .. "'" }
+  -- window:toast_notification("tabsets.wezterm", message, nil, 4000)
+  wezterm.run_child_process { "bash", "-c", "notify-send -a 'tabsets.wezterm' -t 4000 -u normal '" .. message:gsub("'", "'\"'\"'") .. "'" }
 end
 
 --- Retrieves the current tabset data from the active window.
@@ -75,8 +74,8 @@ local function retrieve_tabset_data(window)
   local cfg = window:effective_config()
 
   local tabset_data = {
-    pixel_width = dims.pixel_width,   -- the width of the window in pixels
-    pixel_height = dims.pixel_height, -- the height of the window in pixels
+    window_width = dims.pixel_width,   -- the width of the window in pixels
+    window_height = dims.pixel_height, -- the height of the window in pixels
     colors = cfg.colors,
     tabs = {}
   }
@@ -104,13 +103,10 @@ local function retrieve_tabset_data(window)
   return tabset_data
 end
 
---- Saves data to a JSON file.
--- @param data table: The tabset data to be saved.
--- @param file_path string: The file path where the JSON file will be saved.
--- @return boolean: true if saving was successful, false otherwise.
+-- Save data to a JSON file.
 local function save_to_json_file(data, file_path)
   if not data then
-    wezterm.log_error("No tabset data to log.")
+    wezterm.log_error("No tabset data to save.")
     return false
   end
 
@@ -124,11 +120,10 @@ local function save_to_json_file(data, file_path)
   end
 end
 
---- Recreates the tabset based on the provided data.
--- @param tabset_data table: The data structure containing the saved tabset state.
+--- Recreate the tabset from tabset_data
 local function recreate_tabset(window, tabset_data)
   if not tabset_data or not tabset_data.tabs then
-    wezterm.log_error("Invalid or empty tabset data provided.")
+    wezterm.log_error("Invalid or empty tabset data.")
     return
   end
 
@@ -140,16 +135,14 @@ local function recreate_tabset(window, tabset_data)
     local foreground_process = initial_pane:get_foreground_process_name()
     if is_shell(foreground_process) then
       initial_pane:send_text("exit\r")
-      wezterm.log_info("Initial lone tab closed.")
+      wezterm.log_info("Existing single empty tab closed.")
       window_is_empty = true
-    else
-      wezterm.log_info("Initial tab left open because a running program was running.")
     end
   end
 
+  -- Restore window size and colors
   if window_is_empty then
-    -- Restore window size and colors
-    window:set_inner_size(tabset_data.pixel_width, tabset_data.pixel_height)
+    window:set_inner_size(tabset_data.window_width, tabset_data.window_height)
     window:set_config_overrides({ colors = tabset_data.colors or {} })
   end
 
@@ -189,7 +182,7 @@ local function recreate_tabset(window, tabset_data)
 
       if not new_pane then
         wezterm.log_error("Failed to create a new pane.")
-        break
+        goto continue
       end
 
       if not is_shell(pane_data.exe) then
@@ -198,6 +191,8 @@ local function recreate_tabset(window, tabset_data)
           new_pane:send_text(exe .. "\n")
         end
       end
+
+      ::continue::
     end
     first_pane:activate()
   end
@@ -206,13 +201,11 @@ local function recreate_tabset(window, tabset_data)
   return true
 end
 
---- Loads data from a JSON file.
--- @param file_path string: The file path from which the JSON data will be loaded.
--- @return table or nil: The loaded data as a Lua table, or nil if loading failed.
+-- Loads tabset data from a JSON file.
 local function load_from_json_file(file_path)
   local file = io.open(file_path, "r")
   if not file then
-    wezterm.log_error("Failed to open file '" .. file_path .. "'")
+    wezterm.log_error("Failed to open file '" .. file_path .. "'.")
     return nil
   end
 
@@ -221,7 +214,7 @@ local function load_from_json_file(file_path)
 
   local data = wezterm.json_parse(file_content)
   if not data then
-    wezterm.log_error("Failed to parse JSON data from tabset file '" .. file_path .. "'")
+    wezterm.log_error("Failed to parse JSON data from tabset file '" .. file_path .. "'.")
   end
   return data
 end
@@ -233,19 +226,19 @@ function M.load_tabset_by_name(window, name)
 
   local tabset_data = load_from_json_file(file_path)
   if not tabset_data then
-    display_notification(window, "Tabset file not found '" .. file_path .. "'")
+    display_notification(window, "Tabset file not found '" .. file_path .. "'.")
     return
   end
 
   if recreate_tabset(window, tabset_data) then
-    display_notification(window, "Tabset loaded '" .. name .. "'")
+    display_notification(window, "Tabset loaded '" .. name .. "'.")
   else
     -- FIXME: report the actual logged error: devise a better logging + notification system
-    display_notification(window, "Tabset loading failed '" .. name .. "'")
+    display_notification(window, "Tabset loading failed '" .. name .. "'.")
   end
 end
 
-local function session_action(window, callback)
+local function tabset_action(window, callback)
   -- Collect tabset names
   local choices = {}
   local ok, files = pcall(wezterm.read_dir, get_tabsets_dir())
@@ -262,7 +255,7 @@ local function session_action(window, callback)
   end
 
   if #choices == 0 then
-    display_notification(window, "No saved session files found.")
+    display_notification(window, "No saved tabset files found.")
     return
   end
 
@@ -283,9 +276,9 @@ local function session_action(window, callback)
   }, window:active_pane())
 end
 
---- Load selected session
+--- Load selected tabset
 function M.load_tabset(window)
-  session_action(window,
+  tabset_action(window,
     function(_, _, id)
       if id then
         M.load_tabset_by_name(window, id)
@@ -293,13 +286,13 @@ function M.load_tabset(window)
     end)
 end
 
---- Delete selected session
+--- Delete selected tabset
 function M.delete_tabset(window)
-  session_action(window,
+  tabset_action(window,
     function(_, _, id)
       if id then
         wezterm.run_child_process { "rm", "-f", tabset_file(id) }
-        display_notification(window, "Deleted session '" .. id .. "'")
+        display_notification(window, "Deleted tabset '" .. id .. "'.")
       end
     end)
 end
@@ -309,19 +302,19 @@ function M.save_tabset(window)
   local data = retrieve_tabset_data(window)
 
   window:perform_action(act.PromptInputLine {
-    description = "Enter session name",
+    description = "Enter tabset name",
     initial_value = "default",
     action = wezterm.action_callback(function(_, _, name)
       if not is_valid_tabset_name(name) then
-        display_notification(window, "Invalid tabset name '" .. name .. "'")
+        display_notification(window, "Invalid tabset name '" .. name .. "'.")
         return
       end
       data.name = name
       local data_file = tabset_file(name)
       if save_to_json_file(data, data_file) then
-        display_notification(window, "Session '" .. name .. "' saved successfully")
+        display_notification(window, "Tabset '" .. name .. "' saved successfully.")
       else
-        display_notification(window, "Failed to save '" .. data_file .. "'")
+        display_notification(window, "Failed to save '" .. data_file .. "'.")
       end
     end),
   }, window:active_pane())
