@@ -37,6 +37,30 @@ local function is_shell(file_path)
   return false
 end
 
+local function extract_path_from_uri(uri)
+  return uri:gsub("^file://", "")
+end
+
+local function resolve_executable(path)
+  -- 1. Does the path exist and is it executable?
+  local ok = wezterm.run_child_process { "test", "-x", path, }
+  if ok then
+    return path
+  end
+  -- 2. Try resolving via `which`
+  local success, stdout, _ = wezterm.run_child_process { "which", path, }
+  if success and stdout then
+    -- trim trailing newline(s)
+    local resolved = stdout:gsub("%s+$", "")
+    if resolved ~= "" then
+      return resolved
+    end
+  end
+  -- 3. Not found
+  wezterm.log_error("Failed to resolve executable '" .. path .. "'.")
+  return nil
+end
+
 --- Displays a notification in WezTerm.
 local function display_notification(window, message)
   wezterm.log_info(message)
@@ -70,7 +94,7 @@ local function retrieve_tabset_data(window)
       table.insert(tab_data.panes, {
         left = pane_info.left,
         cwd = tostring(pane_info.pane:get_current_working_dir()),
-        tty = tostring(pane_info.pane:get_foreground_process_name())
+        exe = tostring(pane_info.pane:get_foreground_process_name())
       })
     end
 
@@ -86,7 +110,7 @@ end
 -- @return boolean: true if saving was successful, false otherwise.
 local function save_to_json_file(data, file_path)
   if not data then
-    wezterm.log_info("No tabset data to log.")
+    wezterm.log_error("No tabset data to log.")
     return false
   end
 
@@ -103,31 +127,27 @@ end
 --- Recreates the tabset based on the provided data.
 -- @param tabset_data table: The data structure containing the saved tabset state.
 local function recreate_tabset(window, tabset_data)
-  local function extract_path_from_uri(uri)
-    return uri:gsub("^file://", "")
-  end
-
   if not tabset_data or not tabset_data.tabs then
-    wezterm.log_info("Invalid or empty tabset data provided.")
+    wezterm.log_error("Invalid or empty tabset data provided.")
     return
   end
 
   local tabs = window:mux_window():tabs()
 
-  local is_empty_window = false
+  local window_is_empty = false
   if #tabs == 1 and #tabs[1]:panes() == 1 then
     local initial_pane = window:active_pane()
     local foreground_process = initial_pane:get_foreground_process_name()
     if is_shell(foreground_process) then
       initial_pane:send_text("exit\r")
       wezterm.log_info("Initial lone tab closed.")
-      is_empty_window = true
+      window_is_empty = true
     else
-      wezterm.log_info("Initial tab left open because a running program was detected.")
+      wezterm.log_info("Initial tab left open because a running program was running.")
     end
   end
 
-  if is_empty_window then
+  if window_is_empty then
     -- Restore window size and colors
     window:set_inner_size(tabset_data.pixel_width, tabset_data.pixel_height)
     window:set_config_overrides({ colors = tabset_data.colors or {} })
@@ -139,11 +159,11 @@ local function recreate_tabset(window, tabset_data)
     local cwd_path = extract_path_from_uri(cwd_uri)
 
     local new_tab = window:mux_window():spawn_tab({ cwd = cwd_path })
-    new_tab:set_title(tab_data.title)
     if not new_tab then
-      wezterm.log_info("Failed to create a new tab.")
+      wezterm.log_error("Failed to create a new tab.")
       break
     end
+    new_tab:set_title(tab_data.title)
 
     -- Activate the new tab before creating panes
     new_tab:activate()
@@ -168,12 +188,15 @@ local function recreate_tabset(window, tabset_data)
       end
 
       if not new_pane then
-        wezterm.log_info("Failed to create a new pane.")
+        wezterm.log_error("Failed to create a new pane.")
         break
       end
 
-      if not is_shell(pane_data.tty) then
-        new_pane:send_text(pane_data.tty .. "\n")
+      if not is_shell(pane_data.exe) then
+        local exe = resolve_executable(pane_data.exe)
+        if exe then
+          new_pane:send_text(exe .. "\n")
+        end
       end
     end
     first_pane:activate()
@@ -189,7 +212,7 @@ end
 local function load_from_json_file(file_path)
   local file = io.open(file_path, "r")
   if not file then
-    wezterm.log_info("Failed to open file '" .. file_path .. "'")
+    wezterm.log_error("Failed to open file '" .. file_path .. "'")
     return nil
   end
 
@@ -198,7 +221,7 @@ local function load_from_json_file(file_path)
 
   local data = wezterm.json_parse(file_content)
   if not data then
-    wezterm.log_info("Failed to parse JSON data from tabset file '" .. file_path .. "'")
+    wezterm.log_error("Failed to parse JSON data from tabset file '" .. file_path .. "'")
   end
   return data
 end
