@@ -1,76 +1,95 @@
-# WezTerm Session Manager
+# tabsets.wezterm
 
-The [WezTerm](https://wezfurlong.org/wezterm/) Session Manager is a Lua script
-enhancement for WezTerm that provides functionality to save, load, and restore
-terminal sessions. This tool helps manage terminal sessions, its goal is to save
-and restore different sessions or better workspaces and later restore them.
+A WezTerm plugin to save and load named tab sets.
 
 ## Features
 
-- **Save Session State** Captures the current layout of windows, tabs and panes,
-  along with their working directories and foreground processes.
-- **restore Session** Reopens a previously saved session that matches the
-  current workspace name, restoring its layout and directories.
-- **Load Session (Not implemented yet)** Allows selecting which saved session to
-  load, regardless of the current workspace name.
+- Save current window layout (tabs, panes, tab names, working directories, foreground processes, window dimensions, custom colors) to named JSON files
+- Load named tabsets to recreate the saved tab layouts
+- Tabsets are appended to the current window.
 
 ## Installation
 
-1. **Clone the Repository** Clone the Repository into your WezTerm configuration
-   directory:
+Install plugin by adding this to your `wezterm.lua` configuration file:
 
-   ```bash
-   git clone https://github.com/danielcopper/wezterm-session-manager.git ~/.config/wezterm/wezterm-session-manager
-   ```
+```
 
-2. **Configure WezTerm:** Edit your 'wezterm.lua' file to include the Session
-   Manager:
+local tabsets = wezterm.plugin.require("https://github.com/srackham/tabsets.wezterm")
+tabsets.setup()
+```
 
-   ```lua
-   local session_manager = require("wezterm-session-manager/session-manager")
-   ```
+Add optional tabsets key bindings to the configuration file `config` configuration builder:
 
-3. **Setup Event Bindings:** Edit your 'wezterm.lua' to include the event
-   bindings to trigger the functions of the session manager
+```
+wezterm.on("save_tabset", function(window) tabsets.save_tabset(window) end)
+wezterm.on("load_tabset", function(window) tabsets.load_tabset(window) end)
+wezterm.on("delete_tabset", function(window) tabsets.delete_tabset(window) end)
 
-   ```lua
-   wezterm.on("save_session", function(window) session_manager.save_state(window) end)
-   wezterm.on("load_session", function(window) session_manager.load_state(window) end)
-   wezterm.on("restore_session", function(window) session_manager.restore_state(window) end)
-   ```
+for _, v in ipairs({
+  { key = "S", mods = "LEADER", action = wezterm.action { EmitEvent = "save_tabset" } },
+  { key = "L", mods = "LEADER", action = wezterm.action { EmitEvent = "load_tabset" } },
+  { key = "D", mods = "LEADER", action = wezterm.action { EmitEvent = "delete_tabset" } },
+})
+do table.insert(config.keys, v) end
+```
 
-4. **Set Keybindings:** Define Keybindings in your 'wezterm.lua' for saving,
-   restoring and loading sessions:
+Add optional tabsets Palette bindings:
 
-   ```lua
-   local wezterm = require 'wezterm';
-   return {
-     keys = {
-      {key = "S", mods = "LEADER", action = wezterm.action{EmitEvent = "save_session"}},
-      {key = "L", mods = "LEADER", action = wezterm.action{EmitEvent = "load_session"}},
-      {key = "R", mods = "LEADER", action = wezterm.action{EmitEvent = "restore_session"}},
-     },
-   }
-   ```
+```
+palette_commands = {}
+for _, v in ipairs({
+  {
+    brief = "Tabset: Save",
+    icon = "md_content_save",
+    action = wezterm.action_callback(tabsets.save_tabset),
+  },
+  {
+    brief = "Tabset: Load",
+    icon = "md_reload",
+    action = wezterm.action_callback(tabsets.load_tabset),
+  },
+  {
+    brief = "Tabset: Delete",
+    icon = "md_delete",
+    action = wezterm.action_callback(tabsets.delete_tabset),
+  },
+})
+do table.insert(palette_commands, v) end
 
-5. I also recommend to set up a keybinding for creating **named** workspaces as
-   explained
-   [here](https://wezfurlong.org/wezterm/config/lua/keyassignment/SwitchToWorkspace.html).
-   This helps managing and switching states.
+-- Install Palette commands
+wezterm.on("augment-command-palette", function() return palette_commands end)
+```
+
+## Usage
+
+- Save, load and delete tabsets using key bindings, palette commands or from Lua code.
+- Tabsets are stored as `.tabset.json` files in `~/.config/wezterm/tabsets.wezterm/` (customizable, set API).
+
+## API
+
+| Function                                      | Description                                   | Parameters                                       |
+| --------------------------------------------- | --------------------------------------------- | ------------------------------------------------ |
+| `tabsets.setup([opts])`                       | Initialize plugin. Creates default directory. | `opts.tabsets_dir`: custom storage path          |
+| `tabsets.save_tabset(window)`                 | Interactively save current layout.            | `wezterm.Window window`                          |
+| `tabsets.load_tabset(window)`                 | Show selector and load chosen tabset.         | `wezterm.Window window`                          |
+| `tabsets.load_tabset_by_name(window, [name])` | Load specific tabset by name.                 | `wezterm.Window window`, `string name="default"` |
+| `tabsets.delete_tabset(window)`               | Show selector and delete chosen tabset.       | `wezterm.Window window`                          |
+
+### Setup options
+
+TODO:
+
+## Prerequisites
+
+- Linux or MacOS with `notify-send`, `which`, and `bash` (for notifications and executable resolution)
 
 ## Limitations
 
-There are currently some limitations and improvements that need to be
-implemented:
+- Single-window only by design; doesn't handle WezTerm workspaces
+- Panes are recreated sequentially (Right/Bottom splits); complex nested layouts may differ slightly
+- If enabled, window colors are restored via `set_config_overrides`; may conflict with global config
+- `toast_notification` workaround uses CLI `notify-send` (no timeout on native toast)
 
-- The script does not restore the state of running applications within each pane
-  (except nvim on linux which seems to work fine but the general handling should
-  be improved)
-- It' primarily tested on Linux and Windows, expect some bugs or adjustements
-  that need to be made
-- Complex pane layouts won't be correctly restored, the current implementation
-  to determine the pane position is extremely basic
+## Credits
 
-## Contributing
-
-Feedback, bug reports, and contributions to enhance the script are welcome.
+- `tabsets.wezterm` was inspired by, and began as, a fork of [danielcopper/wezterm-session-manager](https://github.com/danielcopper/wezterm-session-manager).
