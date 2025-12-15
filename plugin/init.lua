@@ -2,32 +2,53 @@ local wezterm = require("wezterm")
 local act = wezterm.action
 local M = {}
 
--- Given "/foo/bar" returns "bar"
--- Given "c:\\foo\\bar" returns "bar"
+--- Extract the final path component from a filesystem path.
+-- Given "/foo/bar" returns "bar".
+-- Given "c:\\foo\\bar" returns "bar".
+-- @tparam string s Full path string
+-- @treturn string Basename component
 local function basename(s)
   return string.gsub(s, "(.*[/\\])(.*)", "%2")
 end
 
--- Returns true if name only contains alphanumeric and +- ._ characters
+--- Check whether a tabset name only contains allowed characters.
+-- Allowed characters are alphanumeric plus "+- ._" and space.
+-- @tparam string name Tabset name to validate
+-- @treturn boolean True if the name is valid, false otherwise
 local function is_valid_tabset_name(name)
   if name:match("^[%w%+%.%-_%s]+$") then return true else return false end
 end
 
+--- Directory where tabset JSON files are stored.
+-- Can be overridden via @{setup}.
+-- @local
 local tabsets_dir
 
+--- Get the directory path used to store tabset files.
+-- Falls back to "<config_dir>/tabsets.wezterm" if not explicitly set.
+-- @treturn string Absolute directory path
 local function get_tabsets_dir()
   return tabsets_dir or wezterm.config_dir .. "/tabsets.wezterm"
 end
 
+--- Set the directory path used to store tabset files.
+-- @tparam string dir Absolute or relative directory path
 local function set_tabsets_dir(dir)
   tabsets_dir = dir
 end
 
+--- Build the full path to a tabset file from its name.
+-- The resulting file has a ".tabset.json" suffix.
+-- @tparam string name Logical tabset name
+-- @treturn string Full filesystem path to the tabset file
 local function tabset_file(name)
   return get_tabsets_dir() .. "/" .. name .. ".tabset.json"
 end
 
--- Returns true if file_path is a shell
+--- Determine whether the given executable path refers to a shell.
+-- The check is performed against a small set of common shell names.
+-- @tparam string file_path Executable path or program name
+-- @treturn boolean True if the executable is considered a shell
 local function is_shell(file_path)
   local shells = { "sh", "bash", "zsh", "fish", "nu", "dash", "csh", "ksh" }
   for _, shell in ipairs(shells) do
@@ -36,10 +57,18 @@ local function is_shell(file_path)
   return false
 end
 
+--- Strip a "file://" URI prefix and return a plain path.
+-- @tparam string uri File URI
+-- @treturn string Local filesystem path
 local function extract_path_from_uri(uri)
   return uri:gsub("^file://", "")
 end
 
+--- Resolve an executable name or path to an absolute executable path.
+-- First checks if the provided path is directly executable, then falls back to `which`.
+-- @tparam string path Executable name or path
+-- @treturn[1] string Resolved absolute path
+-- @treturn[2] nil Returns nil and logs an error if resolution fails
 local function resolve_executable(path)
   -- 1. Does the path exist and is it executable?
   local ok = wezterm.run_child_process { "test", "-x", path, }
@@ -60,7 +89,10 @@ local function resolve_executable(path)
   return nil
 end
 
---- Logs a message and displays it with a desktop notification
+--- Log a message and display it as a desktop notification.
+-- Uses `notify-send` as a workaround for non-expiring toast notifications.
+-- @tparam wezterm.Window window Current wezterm window
+-- @tparam string message Message text to display
 local function display_notification(window, message)
   wezterm.log_info(message)
   -- FIXME: toast_notification does not time out, workaround by running `notify-send` CLI instead
@@ -68,7 +100,10 @@ local function display_notification(window, message)
   wezterm.run_child_process { "bash", "-c", "notify-send -a 'tabsets.wezterm' -t 4000 -u normal '" .. message:gsub("'", "'\"'\"'") .. "'" }
 end
 
---- Retrieves the current tabset data from the active window.
+--- Capture the current window's tabset layout and metadata.
+-- Includes window dimensions, colors, tab titles, pane cwd URIs and foreground executables.
+-- @tparam wezterm.Window window Active wezterm window
+-- @treturn table Tabset description suitable for serialization
 local function retrieve_tabset_data(window)
   local dims = window:get_dimensions()
   local cfg = window:effective_config()
@@ -103,7 +138,11 @@ local function retrieve_tabset_data(window)
   return tabset_data
 end
 
--- Save data to a JSON file.
+--- Serialize a Lua table and save it to a JSON file.
+-- Logs an error and returns false if writing fails.
+-- @tparam table data Lua table to serialize
+-- @tparam string file_path Destination JSON file path
+-- @treturn boolean True on success, false on failure
 local function save_to_json_file(data, file_path)
   if not data then
     wezterm.log_error("No tabset data to save.")
@@ -120,7 +159,12 @@ local function save_to_json_file(data, file_path)
   end
 end
 
---- Recreate the tabset from tabset_data
+--- Recreate the window layout from a previously captured tabset.
+-- Rebuilds tabs and panes, restores window size/colors and optionally re-executes non-shell foreground processes.
+-- @tparam wezterm.Window window Active wezterm window
+-- @tparam table tabset_data Tabset description, as returned by @{retrieve_tabset_data}
+-- @treturn[1] boolean True on successful recreation
+-- @treturn[2] nil Returns nil if validation fails
 local function recreate_tabset(window, tabset_data)
   if not tabset_data or not tabset_data.tabs then
     wezterm.log_error("Invalid or empty tabset data.")
@@ -201,7 +245,11 @@ local function recreate_tabset(window, tabset_data)
   return true
 end
 
--- Loads tabset data from a JSON file.
+--- Load tabset data from a JSON file.
+-- Parses the JSON content and returns the decoded Lua table or nil on error.
+-- @tparam string file_path Path to the JSON file
+-- @treturn[1] table Decoded tabset data
+-- @treturn[2] nil Returns nil if the file cannot be opened or parsed
 local function load_from_json_file(file_path)
   local file = io.open(file_path, "r")
   if not file then
@@ -219,7 +267,10 @@ local function load_from_json_file(file_path)
   return data
 end
 
---- Loads the saved json file corresponding to the tabset name.
+--- Load and restore a tabset by its logical name.
+-- If loading or recreation fails, a notification is shown to the user.
+-- @tparam wezterm.Window window Active wezterm window
+-- @tparam[opt="default"] string name Tabset name (without extension)
 function M.load_tabset_by_name(window, name)
   name = name or "default"
   local file_path = tabset_file(name)
@@ -238,6 +289,10 @@ function M.load_tabset_by_name(window, name)
   end
 end
 
+--- Helper to collect tabset names and run a callback on selection.
+-- Presents an input selector listing all discovered tabset files.
+-- @tparam wezterm.Window window Active wezterm window
+-- @tparam function callback Callback invoked as callback(window, pane, id)
 local function tabset_action(window, callback)
   -- Collect tabset names
   local choices = {}
@@ -276,7 +331,9 @@ local function tabset_action(window, callback)
   }, window:active_pane())
 end
 
---- Load selected tabset
+--- Interactively load a saved tabset.
+-- Shows a selector of available tabsets, then calls @{load_tabset_by_name} on the chosen entry.
+-- @tparam wezterm.Window window Active wezterm window
 function M.load_tabset(window)
   tabset_action(window,
     function(_, _, id)
@@ -286,7 +343,9 @@ function M.load_tabset(window)
     end)
 end
 
---- Delete selected tabset
+--- Interactively delete a saved tabset.
+-- Prompts for a tabset, deletes the corresponding JSON file and notifies the user.
+-- @tparam wezterm.Window window Active wezterm window
 function M.delete_tabset(window)
   tabset_action(window,
     function(_, _, id)
@@ -297,7 +356,9 @@ function M.delete_tabset(window)
     end)
 end
 
---- Save the current tabset state.
+--- Interactively save the current window layout as a tabset.
+-- Prompts for a tabset name, validates it and writes a JSON description to disk.
+-- @tparam wezterm.Window window Active wezterm window
 function M.save_tabset(window)
   local data = retrieve_tabset_data(window)
 
@@ -320,6 +381,10 @@ function M.save_tabset(window)
   }, window:active_pane())
 end
 
+--- Initialize tabset storage options.
+-- Optionally overrides the default tabsets directory and ensures it exists.
+-- @tparam[opt] table opts Options table
+-- @tparam string opts.tabsets_dir Custom directory for tabset files
 function M.setup(opts)
   opts = opts or {}
   if opts.tabsets_dir then
