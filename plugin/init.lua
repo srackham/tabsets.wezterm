@@ -2,6 +2,8 @@ local wezterm = require("wezterm")
 local act = wezterm.action
 local M = {}
 
+local options = {} -- Setup() configuration options.
+
 --- Extract the final path component from a filesystem path.
 -- Given "/foo/bar" returns "bar".
 -- Given "c:\\foo\\bar" returns "bar".
@@ -19,30 +21,12 @@ local function is_valid_tabset_name(name)
   if name:match("^[%w%+%.%-_%s]+$") then return true else return false end
 end
 
---- Directory where tabset JSON files are stored.
--- Can be overridden via @{setup}.
--- @local
-local tabsets_dir
-
---- Get the directory path used to store tabset files.
--- Falls back to "<config_dir>/tabsets.wezterm" if not explicitly set.
--- @treturn string Absolute directory path
-local function get_tabsets_dir()
-  return tabsets_dir or wezterm.config_dir .. "/tabsets.wezterm"
-end
-
---- Set the directory path used to store tabset files.
--- @tparam string dir Absolute or relative directory path
-local function set_tabsets_dir(dir)
-  tabsets_dir = dir
-end
-
 --- Build the full path to a tabset file from its name.
 -- The resulting file has a ".tabset.json" suffix.
 -- @tparam string name Logical tabset name
 -- @treturn string Full filesystem path to the tabset file
 local function tabset_file(name)
-  return get_tabsets_dir() .. "/" .. name .. ".tabset.json"
+  return options.tabsets_dir .. "/" .. name .. ".tabset.json"
 end
 
 --- Determine whether the given executable path refers to a shell.
@@ -186,8 +170,12 @@ local function recreate_tabset(window, tabset_data)
 
   -- Restore window size and colors
   if window_is_empty then
-    window:set_inner_size(tabset_data.window_width, tabset_data.window_height)
-    window:set_config_overrides({ colors = tabset_data.colors or {} })
+    if options.restore_colors then
+      window:set_config_overrides({ colors = tabset_data.colors or {} })
+    end
+    if options.restore_dimensions then
+      window:set_inner_size(tabset_data.window_width, tabset_data.window_height)
+    end
   end
 
   -- Recreate tabs and panes from the saved state
@@ -296,9 +284,9 @@ end
 local function tabset_action(window, callback)
   -- Collect tabset names
   local choices = {}
-  local ok, files = pcall(wezterm.read_dir, get_tabsets_dir())
+  local ok, files = pcall(wezterm.read_dir, options.tabsets_dir)
   if not ok then
-    display_notification(window, "Failed to read tabsets directory '" .. get_tabsets_dir() .. "'.")
+    display_notification(window, "Failed to read tabsets directory '" .. options.tabsets_dir .. "'.")
     return
   end
   for _, f in ipairs(files) do
@@ -386,12 +374,22 @@ end
 -- @tparam[opt] table opts Options table
 -- @tparam string opts.tabsets_dir Custom directory for tabset files
 function M.setup(opts)
-  opts = opts or {}
-  if opts.tabsets_dir then
-    set_tabsets_dir(opts.tabsets_dir)
-  elseif not tabsets_dir then
-    -- Create default tabsets directory, makes intermediate directories and avoids errors if it already exists
-    wezterm.run_child_process({ "mkdir", "-p", get_tabsets_dir() })
+  if opts then
+    options = opts
+  end
+  -- Set default tabsets directory
+  if not options.tabsets_dir then
+    options.tabsets_dir = wezterm.config_dir .. "/tabsets.wezterm"
+  end
+  -- Create the tabsets directory if it does not exist
+  local ok = wezterm.run_child_process { "test", "-d", options.tabsets_dir, }
+  if not ok then
+    ok = pcall(wezterm.run_child_process({ "mkdir", "-p", options.tabsets_dir }))
+    if ok then
+      wezterm.log_info("Created tabsets directory '" .. options.tabsets_dir .. "'.")
+    else
+      wezterm.log_error("Failed to create tabsets directory '" .. options.tabsets_dir .. "'.")
+    end
   end
 end
 
