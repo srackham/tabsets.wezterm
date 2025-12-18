@@ -1,4 +1,4 @@
---- @diagnostic disable
+--- @diagnostic disable -- Disable LuaCATS annotations diagnostics
 
 local wezterm = require("wezterm")
 local act = wezterm.action
@@ -13,16 +13,16 @@ local M = {}
 local options = {} -- Setup() configuration options.
 
 --- Extract the final path component from a filesystem path.
--- Given "/foo/bar" returns "bar".
--- Given "c:\\foo\\bar" returns "bar".
+--- Given "/foo/bar" returns "bar".
+--- Given "c:\\foo\\bar" returns "bar".
 --- @param s string Full path string
 --- @return string #Basename component
 local function basename(s)
-  return string.gsub(s, "(.*[/\\])(.*)", "%2")
+  return (string.gsub(s, "(.*[/\\])(.*)", "%2"))
 end
 
 --- Check whether a tabset name only contains allowed characters.
--- Allowed characters are alphanumeric plus "+- ._" and space.
+--- Allowed characters are alphanumeric plus "+- ._" and space.
 --- @param name string Tabset name to validate
 --- @return boolean #True if the name is valid, false otherwise
 local function is_valid_tabset_name(name)
@@ -30,7 +30,7 @@ local function is_valid_tabset_name(name)
 end
 
 --- Build the full path to a tabset file from its name.
--- The resulting file has a ".tabset.json" suffix.
+--- The resulting file has a ".tabset.json" suffix.
 --- @param name string Logical tabset name
 --- @return string #Full filesystem path to the tabset file
 local function tabset_file(name)
@@ -38,7 +38,7 @@ local function tabset_file(name)
 end
 
 --- Determine whether the given executable path refers to a shell.
--- The check is performed against a small set of common shell names.
+--- The check is performed against a small set of common shell names.
 --- @param file_path string Executable path or program name
 --- @return boolean #True if the executable is considered a shell
 local function is_shell(file_path)
@@ -53,11 +53,11 @@ end
 --- @param uri string File URI
 --- @return string #Local filesystem path
 local function extract_path_from_uri(uri)
-  return uri:gsub("^file://", "")
+  return (uri:gsub("^file://", ""))
 end
 
 --- Resolve an executable name or path to an absolute executable path.
--- First checks if the provided path is directly executable, then falls back to `which`.
+--- First checks if the provided path is directly executable, then falls back to `which`.
 --- @param path string Executable name or path
 --- @return string|nil #Resolved absolute path, or nil if resolution fails
 local function resolve_executable(path)
@@ -81,7 +81,7 @@ local function resolve_executable(path)
 end
 
 --- Log a message and display it as a desktop notification.
--- Uses `notify-send` as a workaround for non-expiring toast notifications.
+--- Uses `notify-send` as a workaround for non-expiring toast notifications.
 --- @param window wezterm.window Current wezterm window
 --- @param message string Message text to display
 local function display_notification(window, message)
@@ -111,7 +111,7 @@ end
 --- @field exe string
 
 --- Capture the current window's tabset layout and metadata.
--- Includes window dimensions, colors, tab titles, pane cwd URIs and foreground executables.
+--- Includes window dimensions, colors, tab titles, pane cwd URIs and foreground executables.
 --- @param window wezterm.window Active wezterm window
 --- @return TabsetData #Tabset description suitable for serialization
 local function retrieve_tabset_data(window)
@@ -149,7 +149,7 @@ local function retrieve_tabset_data(window)
 end
 
 --- Serialize a Lua table and save it to a JSON file.
--- Logs an error and returns false if writing fails.
+--- Logs an error and returns false if writing fails.
 --- @param data table Lua table to serialize
 --- @param file_path string Destination JSON file path
 --- @return boolean #True on success, false on failure
@@ -169,9 +169,9 @@ local function save_to_json_file(data, file_path)
 end
 
 --- Recreate the window layout from a previously captured tabset.
--- Rebuilds tabs and panes, restores window size/colors and optionally re-executes non-shell foreground processes.
+--- Rebuilds tabs and panes, restores window size/colors and optionally re-executes non-shell foreground processes.
 --- @param window wezterm.window Active wezterm window
---- @param tabset_data TabsetData Tabset description, as returned by @{retrieve_tabset_data}
+--- @param tabset_data TabsetData Tabset data, as returned by @{retrieve_tabset_data}
 --- @return boolean #True on successful recreation, false if validation fails
 local function recreate_tabset(window, tabset_data)
   if not tabset_data or not tabset_data.tabs then
@@ -258,7 +258,7 @@ local function recreate_tabset(window, tabset_data)
 end
 
 --- Load tabset data from a JSON file.
--- Parses the JSON content and returns the decoded Lua table or nil on error.
+--- Parses the JSON content and returns the decoded Lua table or nil on error.
 --- @param file_path string Path to the JSON file
 --- @return TabsetData|nil #Decoded tabset data, or nil if the file cannot be opened or parsed
 local function load_from_json_file(file_path)
@@ -280,7 +280,7 @@ local function load_from_json_file(file_path)
 end
 
 --- Load and restore a tabset by its logical name.
--- If loading or recreation fails, a notification is shown to the user.
+--- If loading or recreation fails, a notification is shown to the user.
 --- @param window wezterm.window Active wezterm window
 --- @param name string|nil Tabset name (without extension), defaults to "default"
 function M.load_tabset_by_name(window, name)
@@ -302,7 +302,7 @@ function M.load_tabset_by_name(window, name)
 end
 
 --- Helper to collect tabset names and run a callback on selection.
--- Presents an input selector listing all discovered tabset files.
+--- Presents an input selector listing all discovered tabset files.
 --- @param window wezterm.window Active wezterm window
 --- @param callback fun(window: wezterm.window, pane: wezterm.pane, id: string): void Callback invoked as callback(window, pane, id)
 local function tabset_action(window, callback)
@@ -344,7 +344,7 @@ local function tabset_action(window, callback)
 end
 
 --- Interactively load a saved tabset.
--- Shows a selector of available tabsets, then calls @{load_tabset_by_name} on the chosen entry.
+--- Shows a selector of available tabsets, then calls @{load_tabset_by_name} on the chosen entry.
 --- @param window wezterm.window Active wezterm window
 function M.load_tabset(window)
   tabset_action(window,
@@ -356,7 +356,7 @@ function M.load_tabset(window)
 end
 
 --- Interactively delete a saved tabset.
--- Prompts for a tabset, deletes the corresponding JSON file and notifies the user.
+--- Prompts for a tabset, deletes the corresponding JSON file and notifies the user.
 --- @param window wezterm.window Active wezterm window
 function M.delete_tabset(window)
   tabset_action(window,
@@ -369,7 +369,7 @@ function M.delete_tabset(window)
 end
 
 --- Interactively save the current window layout as a tabset.
--- Prompts for a tabset name, validates it and writes a JSON description to disk.
+--- Prompts for a tabset name, validates it and writes a JSON description to disk.
 --- @param window wezterm.window Active wezterm window
 function M.save_tabset(window)
   --- @type TabsetData
