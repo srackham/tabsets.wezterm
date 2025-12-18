@@ -383,7 +383,6 @@ function M.save_tabset(window)
         display_notification(window, "Invalid tabset name '" .. name .. "'.")
         return
       end
-      data.name = name
       local data_file = tabset_file(name)
       if save_to_json_file(data, data_file) then
         display_notification(window, "Tabset '" .. name .. "' saved successfully.")
