@@ -1,7 +1,12 @@
+---@module 'tabsets'
+---@brief A WezTerm plugin to save and load named tab sets
+
 --- @diagnostic disable -- Disable LuaCATS annotations diagnostics
 
-local wezterm = require("wezterm")
+local wezterm = require 'wezterm'
 local act = wezterm.action
+local fs = require 'tabsets.fs'
+
 local M = {}
 
 --- @class TabsetOptions
@@ -61,21 +66,13 @@ end
 --- @param path string Executable name or path
 --- @return string|nil #Resolved absolute path, or nil if resolution fails
 local function resolve_executable(path)
-  -- 1. Does the path exist and is it executable?
-  local ok = wezterm.run_child_process { "test", "-x", path, }
-  if ok then
+  if fs.is_executable(path) then
     return path
   end
-  -- 2. Try resolving via `which`
-  local success, stdout, _ = wezterm.run_child_process { "which", path, }
-  if success and stdout then
-    -- trim trailing newline(s)
-    local resolved = stdout:gsub("%s+$", "")
-    if resolved ~= "" then
-      return resolved
-    end
+  local shell_path = fs.which(path)
+  if shell_path then
+    return shell_path
   end
-  -- 3. Not found
   wezterm.log_error("Failed to resolve executable '" .. path .. "'.")
   return nil
 end
@@ -362,8 +359,12 @@ function M.delete_tabset(window)
   tabset_action(window,
     function(_, _, id)
       if id then
-        wezterm.run_child_process { "rm", "-f", tabset_file(id) }
-        display_notification(window, "Deleted tabset '" .. id .. "'.")
+        local f = tabset_file(id)
+        if fs.rm(f) then
+          display_notification(window, "Deleted tabset '" .. id .. "'.")
+        else
+          wezterm.log_error("Failed to delete tabsets file '" .. f .. "'.")
+        end
       end
     end)
 end
@@ -405,13 +406,12 @@ function M.setup(opts)
     options.tabsets_dir = wezterm.config_dir .. "/tabsets.wezterm"
   end
   -- Create the tabsets directory if it does not exist
-  local ok = wezterm.run_child_process { "test", "-d", options.tabsets_dir, }
-  if not ok then
-    ok = pcall(wezterm.run_child_process({ "mkdir", "-p", options.tabsets_dir }))
-    if ok then
-      wezterm.log_info("Created tabsets directory '" .. options.tabsets_dir .. "'.")
+  local dir = options.tabsets_dir
+  if not fs.is_directory(dir) then
+    if fs.mkdir(dir) then
+      wezterm.log_info("Created tabsets directory '" .. dir .. "'.")
     else
-      wezterm.log_error("Failed to create tabsets directory '" .. options.tabsets_dir .. "'.")
+      wezterm.log_error("Failed to create tabsets directory '" .. dir .. "'.")
     end
   end
 end
