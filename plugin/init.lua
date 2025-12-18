@@ -1,7 +1,7 @@
 ---@module 'tabsets'
 ---@brief A WezTerm plugin to save and load named tab sets
 
---- @diagnostic disable -- Disable LuaCATS annotations diagnostics
+--- @diagnostic enable -- Enable/disable LuaCATS annotations diagnostics
 
 local wezterm = require 'wezterm'
 local act = wezterm.action
@@ -301,7 +301,7 @@ end
 --- Helper to collect tabset names and run a callback on selection.
 --- Presents an input selector listing all discovered tabset files.
 --- @param window wezterm.window Active wezterm window
---- @param callback fun(window: wezterm.window, pane: wezterm.pane, id: string): void Callback invoked as callback(window, pane, id)
+--- @param callback fun(window: wezterm.window, pane: wezterm.pane, id: string): #Callback invoked as callback(window, pane, id)
 local function tabset_action(window, callback)
   -- Collect tabset names
   local choices = {}
@@ -406,6 +406,7 @@ function M.setup(opts)
     options.tabsets_dir = wezterm.config_dir .. "/tabsets.wezterm"
   end
   -- Create the tabsets directory if it does not exist
+  ---@type string
   local dir = options.tabsets_dir
   if not fs.is_directory(dir) then
     if fs.mkdir(dir) then
