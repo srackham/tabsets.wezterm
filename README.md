@@ -4,21 +4,52 @@ A WezTerm plugin to save and load named tab sets.
 
 ## Features
 
-- Save current window layout (tabs, panes, tab names, working directories, foreground processes, window dimensions, custom colors) to named JSON files
-- Load named tabsets to recreate the saved tab layouts
-- Tabsets are appended to the current window.
+- Save current window layout (tabs, panes, tab names, working directories, foreground processes, window dimensions, custom colors) to named JSON files.
+- Load named tabsets to recreate the saved tab layouts.
 
-## Installation
+## Usage
+
+- Use key bindings or palette commands to save, load and delete tabsets.
+- Tabs are appended to the current window.
+- If the window only contains a single empty tab then:
+  - The empty tab is deleted.
+  - If enabled, window dimensions and custom colors are restored.
+- Tabsets are stored as `.tabset.json` files in `~/.config/wezterm/tabsets.wezterm/` (customizable, set API).
+
+## Prerequisites
+
+- POSIX commands: `rm`, `test`, `which`, `mkdir`, `rmdir`, `mv`.
+- Optional `notify-send` command for desktop notifications workaround.
+
+## Limitations
+
+- Single-window only by design; doesn't handle WezTerm workspaces.
+- Panes are recreated sequentially (Right/Bottom splits); manually sizing is not restored.
+- If enabled, window colors are restored via `set_config_overrides`; may conflict with global configuration.
+- `toast_notification` workaround uses CLI `notify-send` (no timeout on native toast).
+
+## Installation and Configuration
 
 Install plugin by adding this to your `wezterm.lua` configuration file:
 
 ```
 
 local tabsets = wezterm.plugin.require("https://github.com/srackham/tabsets.wezterm")
-tabsets.setup()
+tabsets.setup({
+  -- Optional configuration options
+
+  -- Whether to restore window colors on reload
+  restore_colors = false,
+
+  -- Whether to restore window dimensions on reload
+  restore_dimensions = false,
+
+  -- Path to the directory containing tabset JSON files
+  tabsets_dir = wezterm.config_dir .. "/tabsets.wezterm"
+})
 ```
 
-Add optional tabsets key bindings to the configuration file `config` configuration builder:
+Optional tabsets key bindings to `config` configuration builder:
 
 ```
 wezterm.on("save_tabset", function(window) tabsets.save_tabset(window) end)
@@ -33,7 +64,7 @@ for _, v in ipairs({
 do table.insert(config.keys, v) end
 ```
 
-Add optional tabsets Palette bindings:
+Optional tabsets Palette bindings:
 
 ```
 palette_commands = {}
@@ -60,11 +91,6 @@ do table.insert(palette_commands, v) end
 wezterm.on("augment-command-palette", function() return palette_commands end)
 ```
 
-## Usage
-
-- Save, load and delete tabsets using key bindings, palette commands or from Lua code.
-- Tabsets are stored as `.tabset.json` files in `~/.config/wezterm/tabsets.wezterm/` (customizable, set API).
-
 ## API
 
 | Function                                      | Description                                   | Parameters                                       |
@@ -74,21 +100,6 @@ wezterm.on("augment-command-palette", function() return palette_commands end)
 | `tabsets.load_tabset(window)`                 | Show selector and load chosen tabset.         | `wezterm.Window window`                          |
 | `tabsets.load_tabset_by_name(window, [name])` | Load specific tabset by name.                 | `wezterm.Window window`, `string name="default"` |
 | `tabsets.delete_tabset(window)`               | Show selector and delete chosen tabset.       | `wezterm.Window window`                          |
-
-### Setup options
-
-TODO:
-
-## Prerequisites
-
-- Linux or MacOS with `notify-send`, `which`, and `bash` (for notifications and executable resolution)
-
-## Limitations
-
-- Single-window only by design; doesn't handle WezTerm workspaces
-- Panes are recreated sequentially (Right/Bottom splits); complex nested layouts may differ slightly
-- If enabled, window colors are restored via `set_config_overrides`; may conflict with global config
-- `toast_notification` workaround uses CLI `notify-send` (no timeout on native toast)
 
 ## Credits
 
