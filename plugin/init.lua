@@ -1,10 +1,43 @@
 ---@module 'tabsets'
 ---@brief A WezTerm plugin to save and load named tab sets
 
---- @diagnostic enable -- Enable/disable LuaCATS annotations diagnostics
+--- @diagnostic disable -- Enable/disable LuaCATS annotations diagnostics
 
 local wezterm = require 'wezterm'
 local act = wezterm.action
+
+--- Updates Lua's `package.path` to include the `./plugin` directory of the specified WezTerm plugin.
+--- See [Managing a Plugin with Multiple Lua Modules](https://wezterm.org/config/plugins.html#managing-a-plugin-with-multiple-lua-modules).
+--- @function update_plugin_path
+--- @param plugin_name string The identifier (e.g., GitHub username or repo name) to match against the plugin URL
+--- @return boolean `true` if the plugin was found and `package.path` updated successfully, `false` otherwise
+local function update_plugin_path(plugin_name)
+  for _, plugin in ipairs(wezterm.plugin.list()) do
+    if string.find(plugin.url:lower(), plugin_name:lower(), 1, true) then
+      -- Define the patterns for both standard files and init files
+      local standard_pattern = plugin.plugin_dir .. "/plugin/?.lua"
+      local init_pattern = plugin.plugin_dir .. "/plugin/?/init.lua"
+
+      -- Avoid appending if the path is already registered
+      if package.path:find(standard_pattern, 1, true) then
+        wezterm.log_info('Skipped updating existing package.path for plugin: ' .. plugin.url)
+        return true
+      end
+
+      local path_update = standard_pattern .. ";" .. init_pattern
+      package.path = package.path .. ";" .. path_update
+      wezterm.log_info("Updated package.path for plugin: " .. path_update)
+      return true
+    end
+  end
+  wezterm.log_error('No plugin found matching: ' .. plugin_name)
+  return false
+end
+
+if not update_plugin_path("tabsets.wezterm") then
+  return {}
+end
+
 local fs = require 'tabsets.fs'
 
 local M = {}
@@ -18,8 +51,8 @@ local M = {}
 local options = {} -- Setup() configuration options.
 
 --- Extract the final path component from a filesystem path.
---- Given "/foo/bar" returns "bar".
---- Given "c:\\foo\\bar" returns "bar".
+--- Given `/foo/bar` returns `bar`.
+--- Given `c:\\foo\\bar` returns `bar`.
 --- @param s string Full path string
 --- @return string #Basename component
 local function basename(s)
@@ -27,7 +60,7 @@ local function basename(s)
 end
 
 --- Check whether a tabset name only contains allowed characters.
---- Allowed characters are alphanumeric plus "+- ._" and space.
+--- Allowed characters are alphanumeric plus `+- ._` and space.
 --- @param name string Tabset name to validate
 --- @return boolean #True if the name is valid, false otherwise
 local function is_valid_tabset_name(name)
@@ -35,7 +68,7 @@ local function is_valid_tabset_name(name)
 end
 
 --- Build the full path to a tabset file from its name.
---- The resulting file has a ".tabset.json" suffix.
+--- The resulting file has a `.tabset.json` suffix.
 --- @param name string Logical tabset name
 --- @return string #Full filesystem path to the tabset file
 local function tabset_file(name)
@@ -54,7 +87,7 @@ local function is_shell(file_path)
   return false
 end
 
---- Strip a "file://" URI prefix and return a plain path.
+--- Strip a `file://` URI prefix and return a plain path.
 --- @param uri string File URI
 --- @return string #Local filesystem path
 local function extract_path_from_uri(uri)
@@ -279,7 +312,7 @@ end
 --- Load and restore a tabset by its logical name.
 --- If loading or recreation fails, a notification is shown to the user.
 --- @param window wezterm.window Active wezterm window
---- @param name string|nil Tabset name (without extension), defaults to "default"
+--- @param name string|nil Tabset name (without extension), defaults to `default`
 function M.load_tabset_by_name(window, name)
   name = name or "default"
   local file_path = tabset_file(name)
