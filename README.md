@@ -9,12 +9,12 @@ A WezTerm plugin to save and load named tab sets.
 
 ## Usage
 
-- Use key bindings or palette commands to save, load and delete tabsets.
+- Use key bindings or palette commands to save, load and delete tabsets †.
 - Tabs are appended to the current window.
-- If the window only contains a single empty tab then:
-  - The empty tab is deleted.
-  - If enabled, window dimensions and custom colors are restored.
-- Tabsets are stored as `.tabset.json` files in `~/.config/wezterm/tabsets.wezterm/` (customizable, set API).
+- If the window only contains a single empty tab then the empty tab is deleted and, if enabled, window dimensions and custom colors are restored.
+- Tabsets are stored as `.tabset.json` files in `~/.config/wezterm/tabsets.wezterm/` †.
+
+† See _Installation and Configuration_.
 
 ## Prerequisites
 
@@ -24,9 +24,8 @@ A WezTerm plugin to save and load named tab sets.
 ## Limitations
 
 - Single-window only by design; doesn't handle WezTerm workspaces.
-- Panes are recreated sequentially (Right/Bottom splits); manually sizing is not restored.
+- Panes are recreated sequentially (Right/Bottom splits); manual resizing is not restored.
 - If enabled, window colors are restored via `set_config_overrides`; may conflict with global configuration.
-- `toast_notification` workaround uses CLI `notify-send` (no timeout on native toast).
 
 ## Installation and Configuration
 
@@ -38,10 +37,10 @@ local tabsets = wezterm.plugin.require("https://github.com/srackham/tabsets.wezt
 tabsets.setup({
   -- Optional configuration options
 
-  -- Whether to restore window colors on reload
+  -- Restore custom colors when loading empty window
   restore_colors = false,
 
-  -- Whether to restore window dimensions on reload
+  -- Restore window dimensions when loading empty window
   restore_dimensions = false,
 
   -- Path to the directory containing tabset JSON files
