@@ -9,11 +9,11 @@ local act = wezterm.action
 --- Updates Lua's `package.path` to include the `./plugin` directory of the specified WezTerm plugin.
 --- See [Managing a Plugin with Multiple Lua Modules](https://wezterm.org/config/plugins.html#managing-a-plugin-with-multiple-lua-modules).
 --- @function update_plugin_path
---- @param plugin_name string The identifier (e.g., GitHub username or repo name) to match against the plugin URL
---- @return boolean `true` if the plugin was found and `package.path` updated successfully, `false` otherwise
-local function update_plugin_path(plugin_name)
+--- @param plugin_url string Partial or full plugin URL
+--- @return boolean `true` if the plugin was found and the `package.path` updated successfully, `false` otherwise
+local function update_plugin_path(plugin_url)
   for _, plugin in ipairs(wezterm.plugin.list()) do
-    if string.find(plugin.url:lower(), plugin_name:lower(), 1, true) then
+    if string.find(plugin.url:lower(), plugin_url:lower(), 1, true) then
       -- Define the patterns for both standard files and init files
       local standard_pattern = plugin.plugin_dir .. "/plugin/?.lua"
       local init_pattern = plugin.plugin_dir .. "/plugin/?/init.lua"
@@ -30,7 +30,7 @@ local function update_plugin_path(plugin_name)
       return true
     end
   end
-  wezterm.log_error('No plugin found matching: ' .. plugin_name)
+  wezterm.log_error('No plugin found matching: ' .. plugin_url)
   return false
 end
 
@@ -44,8 +44,8 @@ local M = {}
 
 --- @class TabsetOptions
 --- @field tabsets_dir? string Path to the directory containing tabset JSON files
---- @field restore_colors? boolean Whether to restore window colors on reload
---- @field restore_dimensions? boolean Whether to restore window dimensions on reload
+--- @field restore_colors? boolean Restore custom colors when loading empty window
+--- @field restore_dimensions? boolean Restore window dimensions when loading empty window
 
 --- @type TabsetOptions
 local options = {} -- Setup() configuration options.
@@ -148,6 +148,7 @@ local function retrieve_tabset_data(window)
   local dims = window:get_dimensions()
   local cfg = window:effective_config()
 
+  ---@type TabsetData
   local tabset_data = {
     window_width = dims.pixel_width,   -- the width of the window in pixels
     window_height = dims.pixel_height, -- the height of the window in pixels
@@ -157,6 +158,7 @@ local function retrieve_tabset_data(window)
 
   -- Iterate over tabs in the current window
   for _, tab in ipairs(window:mux_window():tabs()) do
+    ---@type TabsetTabData
     local tab_data = {
       title = tab:get_title(),
       panes = {},

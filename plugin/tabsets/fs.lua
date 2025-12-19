@@ -1,5 +1,5 @@
 ---@module 'fs'
----@brief WezTerm-safe filesystem helpers using external commands (POSIX)
+---@brief WezTerm filesystem helpers using external commands (POSIX)
 
 local wezterm = require 'wezterm'
 
@@ -117,11 +117,11 @@ end
 
 ---Rename or move a file or directory.
 ---Uses `mv`.
----@param old_path string
----@param new_path string
+---@param src_path string
+---@param dst_path string
 ---@return boolean success
-function fs.mv(old_path, new_path)
-  local ok, _, stderr = run { 'mv', old_path, new_path }
+function fs.mv(src_path, dst_path)
+  local ok, _, stderr = run { 'mv', src_path, dst_path }
   if not ok then
     wezterm.log_error('mv failed: ' .. (stderr or 'unknown error'))
     return false
