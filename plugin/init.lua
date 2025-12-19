@@ -48,7 +48,7 @@ local M = {}
 --- @field restore_dimensions? boolean Restore window dimensions when loading empty window
 
 --- @type TabsetOptions
-local options = {} -- Setup() configuration options.
+M.options = {} -- Setup() configuration options.
 
 --- Extract the final path component from a filesystem path.
 --- Given `/foo/bar` returns `bar`.
@@ -72,7 +72,7 @@ end
 --- @param name string Logical tabset name
 --- @return string #Full filesystem path to the tabset file
 local function tabset_file(name)
-  return options.tabsets_dir .. "/" .. name .. ".tabset.json"
+  return M.options.tabsets_dir .. "/" .. name .. ".tabset.json"
 end
 
 --- Determine whether the given executable path refers to a shell.
@@ -226,10 +226,10 @@ local function recreate_tabset(window, tabset_data)
 
   -- Restore window size and colors
   if window_is_empty then
-    if options.restore_colors then
+    if M.options.restore_colors then
       window:set_config_overrides({ colors = tabset_data.colors or {} })
     end
-    if options.restore_dimensions then
+    if M.options.restore_dimensions then
       window:set_inner_size(tabset_data.window_width, tabset_data.window_height)
     end
   end
@@ -340,9 +340,9 @@ end
 local function tabset_action(window, callback)
   -- Collect tabset names
   local choices = {}
-  local ok, files = pcall(wezterm.read_dir, options.tabsets_dir)
+  local ok, files = pcall(wezterm.read_dir, M.options.tabsets_dir)
   if not ok then
-    display_notification(window, "Failed to read tabsets directory '" .. options.tabsets_dir .. "'.")
+    display_notification(window, "Failed to read tabsets directory '" .. M.options.tabsets_dir .. "'.")
     return
   end
   for _, f in ipairs(files) do
@@ -434,15 +434,15 @@ end
 function M.setup(opts)
   if opts then
     --- @cast opts TabsetOptions
-    options = opts
+    M.options = opts
   end
   -- Set default tabsets directory
-  if not options.tabsets_dir then
-    options.tabsets_dir = wezterm.config_dir .. "/tabsets.wezterm"
+  if not M.options.tabsets_dir then
+    M.options.tabsets_dir = wezterm.config_dir .. "/tabsets.wezterm"
   end
   -- Create the tabsets directory if it does not exist
   ---@type string
-  local dir = options.tabsets_dir
+  local dir = M.options.tabsets_dir
   if not fs.is_directory(dir) then
     if fs.mkdir(dir) then
       wezterm.log_info("Created tabsets directory '" .. dir .. "'.")
