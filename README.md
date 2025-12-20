@@ -4,14 +4,14 @@ A WezTerm plugin to save and load named tab sets.
 
 ## Features
 
-- Save current window layout (tabs, panes, tab names, working directories, foreground processes, window dimensions, custom colors) to named JSON files.
-- Load named tabsets to recreate the saved tab layouts.
+- Commands to load, save, rename and delete named tab layouts.
+- Saves current window layout (tabs, panes, tab names, working directories, foreground processes, window dimensions, custom colors) to named JSON files.
 
 ## Usage
 
 - Use key bindings or palette commands to save, load and delete tabsets †.
 - Tabs are appended to the current window.
-- If the window only contains a single empty tab then the empty tab is deleted and, if enabled, window dimensions and custom colors are restored.
+- If the window is empty (only contains a single empty tab) then the empty tab is deleted and, optionally, window dimensions and custom colors are restored.
 - Tabsets are stored as `.tabset.json` files in `~/.config/wezterm/tabsets.wezterm/` †.
 
 † See _Installation and Configuration_.
@@ -23,9 +23,8 @@ A WezTerm plugin to save and load named tab sets.
 
 ## Limitations
 
-- Single-window only by design; doesn't handle WezTerm workspaces.
-- Panes are recreated sequentially (Right/Bottom splits); manual resizing is not restored.
-- If enabled, window colors are restored via `set_config_overrides`; may conflict with global configuration.
+- Tabsets are confined to a single window by design.
+- Panes are recreated with splits; manually resized panes are restored to their default split size.
 
 ## Installation and Configuration
 
@@ -35,7 +34,7 @@ Install plugin by adding this to your `wezterm.lua` configuration file:
 
 local tabsets = wezterm.plugin.require("https://github.com/srackham/tabsets.wezterm")
 tabsets.setup({
-  -- Optional configuration options
+  -- Optional configuration options showing the default values
 
   -- Restore custom colors when loading empty window
   restore_colors = false,
@@ -45,6 +44,9 @@ tabsets.setup({
 
   -- Path to the directory containing tabset JSON files
   tabsets_dir = wezterm.config_dir .. "/tabsets.wezterm"
+
+  -- Fuzzy-match tabset name selection
+  fuzzy_selector = false,
 })
 ```
 
@@ -54,11 +56,13 @@ Optional tabsets key bindings to `config` configuration builder:
 wezterm.on("save_tabset", function(window) tabsets.save_tabset(window) end)
 wezterm.on("load_tabset", function(window) tabsets.load_tabset(window) end)
 wezterm.on("delete_tabset", function(window) tabsets.delete_tabset(window) end)
+wezterm.on("rename_tabset", function(window) tabsets.rename_tabset(window) end)
 
 for _, v in ipairs({
   { key = "S", mods = "LEADER", action = wezterm.action { EmitEvent = "save_tabset" } },
   { key = "L", mods = "LEADER", action = wezterm.action { EmitEvent = "load_tabset" } },
   { key = "D", mods = "LEADER", action = wezterm.action { EmitEvent = "delete_tabset" } },
+  { key = "R", mods = "LEADER", action = wezterm.action { EmitEvent = "rename_tabset" } },
 })
 do table.insert(config.keys, v) end
 ```
@@ -66,7 +70,7 @@ do table.insert(config.keys, v) end
 Optional tabsets Palette bindings:
 
 ```
-palette_commands = {}
+-- Add tabsets Palette bindings
 for _, v in ipairs({
   {
     brief = "Tabset: Save",
@@ -75,7 +79,7 @@ for _, v in ipairs({
   },
   {
     brief = "Tabset: Load",
-    icon = "md_reload",
+    icon = "cod_terminal_tmux",
     action = wezterm.action_callback(tabsets.load_tabset),
   },
   {
@@ -83,22 +87,17 @@ for _, v in ipairs({
     icon = "md_delete",
     action = wezterm.action_callback(tabsets.delete_tabset),
   },
+  {
+    brief = "Tabset: Rename",
+    icon = "md_rename_box",
+    action = wezterm.action_callback(tabsets.rename_tabset),
+  },
 })
 do table.insert(palette_commands, v) end
 
 -- Install Palette commands
 wezterm.on("augment-command-palette", function() return palette_commands end)
 ```
-
-## API
-
-| Function                                      | Description                                   | Parameters                                       |
-| --------------------------------------------- | --------------------------------------------- | ------------------------------------------------ |
-| `tabsets.setup([opts])`                       | Initialize plugin. Creates default directory. | `opts.tabsets_dir`: custom storage path          |
-| `tabsets.save_tabset(window)`                 | Interactively save current layout.            | `wezterm.Window window`                          |
-| `tabsets.load_tabset(window)`                 | Show selector and load chosen tabset.         | `wezterm.Window window`                          |
-| `tabsets.load_tabset_by_name(window, [name])` | Load specific tabset by name.                 | `wezterm.Window window`, `string name="default"` |
-| `tabsets.delete_tabset(window)`               | Show selector and delete chosen tabset.       | `wezterm.Window window`                          |
 
 ## Credits
 
