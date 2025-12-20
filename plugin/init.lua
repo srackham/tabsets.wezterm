@@ -437,6 +437,32 @@ function M.save_tabset(window)
   }, window:active_pane())
 end
 
+--- Rename a tabset.
+--- @param window wezterm.window Active wezterm window
+function M.rename_tabset(window)
+  tabset_action(window,
+    function(_, _, old_name)
+      if old_name then
+        window:perform_action(act.PromptInputLine {
+          description = "Enter new tabset name",
+          action = wezterm.action_callback(function(_, _, new_name)
+            if not is_valid_tabset_name(new_name) then
+              display_notification(window, "Invalid tabset name '" .. new_name .. "'.")
+              return
+            end
+            local old_file = tabset_file(old_name)
+            local new_file = tabset_file(new_name)
+            if fs.mv(old_file, new_file) then
+              display_notification(window, "Tabset '" .. old_name .. "' successfully renamed to '" .. new_name .. "'.")
+            else
+              display_notification(window, "Failed to rename '" .. old_file .. "' to '" .. new_file .. "'.")
+            end
+          end),
+        }, window:active_pane())
+      end
+    end)
+end
+
 --- Initialize plugin and set configuration options.
 --- @param opts TabsetOptions|nil Options table
 function M.setup(opts)
