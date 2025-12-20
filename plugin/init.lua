@@ -1,7 +1,7 @@
----@module 'tabsets'
----@brief A WezTerm plugin to save and load named tab sets
+--- @module 'tabsets'
+--- @brief A WezTerm plugin to save and load named tab sets
 
---- @diagnostic disable -- Enable/disable LuaCATS annotations diagnostics
+--- @diagnostic enable -- Enable/disable LuaCATS annotations diagnostics
 
 local wezterm = require 'wezterm'
 local act = wezterm.action
@@ -41,13 +41,17 @@ end
 local fs = require 'tabsets.fs'
 
 local M = {}
+--- @type string|nil
+M.most_recent_tabset = nil -- The name of the most recently loaded, saved or renamed tabset
+
+--- @class InputSelectorChoice
+--- @field id string
+--- @field name string
 
 --- @class TabsetOptions
 --- @field tabsets_dir? string Path to the directory containing tabset JSON files
 --- @field restore_colors? boolean Restore custom colors when loading empty window
 --- @field restore_dimensions? boolean Restore window dimensions when loading empty window
-
---- @type TabsetOptions
 M.options = {} -- Setup() configuration options.
 
 --- Extract the final path component from a filesystem path.
@@ -148,7 +152,7 @@ local function retrieve_tabset_data(window)
   local dims = window:get_dimensions()
   local cfg = window:effective_config()
 
-  ---@type TabsetData
+  --- @type TabsetData
   local tabset_data = {
     window_width = dims.pixel_width,   -- the width of the window in pixels
     window_height = dims.pixel_height, -- the height of the window in pixels
@@ -158,7 +162,7 @@ local function retrieve_tabset_data(window)
 
   -- Iterate over tabs in the current window
   for _, tab in ipairs(window:mux_window():tabs()) do
-    ---@type TabsetTabData
+    --- @type TabsetTabData
     local tab_data = {
       title = tab:get_title(),
       panes = {},
@@ -212,7 +216,6 @@ local function recreate_tabset(window, tabset_data)
   end
 
   local tabs = window:mux_window():tabs()
-
   local window_is_empty = false
   if #tabs == 1 and #tabs[1]:panes() == 1 then
     local initial_pane = window:active_pane()
@@ -314,10 +317,9 @@ end
 --- Load and restore a tabset by its logical name.
 --- If loading or recreation fails, a notification is shown to the user.
 --- @param window wezterm.window Active wezterm window
---- @param name string|nil Tabset name (without extension), defaults to `default`
-function M.load_tabset_by_name(window, name)
-  name = name or "default"
-  local file_path = tabset_file(name)
+--- @param tabset_name string Tabset name (without extension), defaults to `default`
+function M.load_tabset_by_name(window, tabset_name)
+  local file_path = tabset_file(tabset_name)
 
   local tabset_data = load_from_json_file(file_path)
   if not tabset_data then
@@ -326,19 +328,21 @@ function M.load_tabset_by_name(window, name)
   end
 
   if recreate_tabset(window, tabset_data) then
-    display_notification(window, "Tabset loaded '" .. name .. "'.")
+    M.most_recent_tabset = tabset_name
+    display_notification(window, "Tabset loaded '" .. tabset_name .. "'.")
   else
     -- FIXME: report the actual logged error: devise a better logging + notification system
-    display_notification(window, "Tabset loading failed '" .. name .. "'.")
+    display_notification(window, "Tabset loading failed '" .. tabset_name .. "'.")
   end
 end
 
 --- Helper to collect tabset names and run a callback on selection.
 --- Presents an input selector listing all discovered tabset files.
 --- @param window wezterm.window Active wezterm window
---- @param callback fun(window: wezterm.window, pane: wezterm.pane, id: string): #Callback invoked as callback(window, pane, id)
+--- @param callback fun(window: wezterm.window, pane: wezterm.pane, id: string) Callback invoked as callback(window, pane, id)
 local function tabset_action(window, callback)
   -- Collect tabset names
+  --- @type InputSelectorChoice[]
   local choices = {}
   local ok, files = pcall(wezterm.read_dir, M.options.tabsets_dir)
   if not ok then
@@ -349,7 +353,13 @@ local function tabset_action(window, callback)
     f = basename(f)
     if f:match("%.tabset%.json$") then
       local name = f:gsub("%.tabset%.json$", "")
-      table.insert(choices, { id = name, label = name })
+      local label
+      if name == M.most_recent_tabset then
+        label = wezterm.format { { Foreground = { AnsiColor = 'green' } }, { Text = name } }
+      else
+        label = name
+      end
+      table.insert(choices, { id = name, label = label })
     end
   end
 
@@ -359,19 +369,13 @@ local function tabset_action(window, callback)
   end
 
   table.sort(choices, function(a, b)
-    -- Ensure "default" is the first array item.
-    if a.id == "default" and b.id ~= "default" then
-      return true
-    elseif b.id == "default" and a.id ~= "default" then
-      return false
-    else
-      return a.id < b.id
-    end
+    return a.id < b.id
   end)
 
   window:perform_action(act.InputSelector {
     choices = choices,
     action = wezterm.action_callback(callback),
+    fuzzy = true,
   }, window:active_pane())
 end
 
@@ -380,9 +384,10 @@ end
 --- @param window wezterm.window Active wezterm window
 function M.load_tabset(window)
   tabset_action(window,
-    function(_, _, id)
-      if id then
-        M.load_tabset_by_name(window, id)
+    function(_, _, tabset_name)
+      if tabset_name then
+        -- @type string
+        M.load_tabset_by_name(window, tabset_name)
       end
     end)
 end
@@ -392,11 +397,12 @@ end
 --- @param window wezterm.window Active wezterm window
 function M.delete_tabset(window)
   tabset_action(window,
-    function(_, _, id)
-      if id then
-        local f = tabset_file(id)
+    function(_, _, name)
+      if name then
+        local f = tabset_file(name)
         if fs.rm(f) then
-          display_notification(window, "Deleted tabset '" .. id .. "'.")
+          M.most_recent_tabset = nil -- Invalidate tabset name
+          display_notification(window, "Deleted tabset '" .. name .. "'.")
         else
           wezterm.log_error("Failed to delete tabsets file '" .. f .. "'.")
         end
@@ -413,7 +419,7 @@ function M.save_tabset(window)
 
   window:perform_action(act.PromptInputLine {
     description = "Enter tabset name",
-    initial_value = "default",
+    initial_value = M.most_recent_tabset or "",
     action = wezterm.action_callback(function(_, _, name)
       if not is_valid_tabset_name(name) then
         display_notification(window, "Invalid tabset name '" .. name .. "'.")
@@ -421,6 +427,7 @@ function M.save_tabset(window)
       end
       local data_file = tabset_file(name)
       if save_to_json_file(data, data_file) then
+        M.most_recent_tabset = name
         display_notification(window, "Tabset '" .. name .. "' saved successfully.")
       else
         display_notification(window, "Failed to save '" .. data_file .. "'.")
@@ -441,7 +448,7 @@ function M.setup(opts)
     M.options.tabsets_dir = wezterm.config_dir .. "/tabsets.wezterm"
   end
   -- Create the tabsets directory if it does not exist
-  ---@type string
+  --- @type string
   local dir = M.options.tabsets_dir
   if not fs.is_directory(dir) then
     if fs.mkdir(dir) then
