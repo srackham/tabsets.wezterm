@@ -52,6 +52,7 @@ M.most_recent_tabset = nil -- The name of the most recently loaded, saved or ren
 --- @field tabsets_dir? string Path to the directory containing tabset JSON files
 --- @field restore_colors? boolean Restore custom colors when loading empty window
 --- @field restore_dimensions? boolean Restore window dimensions when loading empty window
+--- @field fuzzy_selector? boolean Fuzzy match tabset name selection
 M.options = {} -- Setup() configuration options.
 
 --- Extract the final path component from a filesystem path.
@@ -375,6 +376,7 @@ local function tabset_action(window, callback)
   window:perform_action(act.InputSelector {
     choices = choices,
     action = wezterm.action_callback(callback),
+    fuzzy = M.options.fuzzy_selector
   }, window:active_pane())
 end
 
@@ -438,17 +440,14 @@ end
 --- Initialize plugin and set configuration options.
 --- @param opts TabsetOptions|nil Options table
 function M.setup(opts)
-  if opts then
-    --- @cast opts TabsetOptions
-    M.options = opts
-  end
+  opts = opts or {}
   -- Set default tabsets directory
-  if not M.options.tabsets_dir then
-    M.options.tabsets_dir = wezterm.config_dir .. "/tabsets.wezterm"
+  if not opts.tabsets_dir then
+    opts.tabsets_dir = wezterm.config_dir .. "/tabsets.wezterm"
   end
   -- Create the tabsets directory if it does not exist
   --- @type string
-  local dir = M.options.tabsets_dir
+  local dir = opts.tabsets_dir
   if not fs.is_directory(dir) then
     if fs.mkdir(dir) then
       wezterm.log_info("Created tabsets directory '" .. dir .. "'.")
@@ -456,6 +455,8 @@ function M.setup(opts)
       wezterm.log_error("Failed to create tabsets directory '" .. dir .. "'.")
     end
   end
+  opts.fuzzy_selector = opts.fuzzy_selector or false
+  M.options = opts
 end
 
 return M
