@@ -355,7 +355,7 @@ local function tabset_action(window, callback)
       local name = f:gsub("%.tabset%.json$", "")
       local label
       if name == M.most_recent_tabset then
-        label = wezterm.format { { Foreground = { AnsiColor = 'green' } }, { Text = name } }
+        label = wezterm.format { { Foreground = { Color = "white" } }, { Attribute = { Intensity = "Bold" } }, { Text = name } }
       else
         label = name
       end
@@ -375,7 +375,6 @@ local function tabset_action(window, callback)
   window:perform_action(act.InputSelector {
     choices = choices,
     action = wezterm.action_callback(callback),
-    fuzzy = true,
   }, window:active_pane())
 end
 
