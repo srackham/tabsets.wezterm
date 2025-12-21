@@ -358,7 +358,8 @@ end
 --- Presents an input selector listing all discovered tabset files.
 --- @param window wezterm.window Active wezterm window
 --- @param callback fun(window: wezterm.window, pane: wezterm.pane, id: string) Callback invoked as callback(window, pane, id)
-local function tabset_action(window, callback)
+--- @param prompt string? Input selector prompt
+local function tabset_action(window, callback, prompt)
   -- Collect tabset names
   --- @type InputSelectorChoice[]
   local choices = {}
@@ -385,9 +386,11 @@ local function tabset_action(window, callback)
   end)
 
   window:perform_action(act.InputSelector {
+    description = prompt,
+    fuzzy_description = prompt,
     choices = choices,
     action = wezterm.action_callback(callback),
-    fuzzy = M.options.fuzzy_selector
+    fuzzy = M.options.fuzzy_selector,
   }, window:active_pane())
 end
 
@@ -401,7 +404,7 @@ function M.load_tabset(window)
         -- @type string
         M.load_tabset_by_name(window, tabset_name)
       end
-    end)
+    end, "Select tabset to load:")
 end
 
 --- Interactively delete a saved tabset.
@@ -418,7 +421,7 @@ function M.delete_tabset(window)
           log_and_notify(window, "Unable to delete tabsets file '" .. f .. "'.", { error = true })
         end
       end
-    end)
+    end, "Select tabset to delete:")
 end
 
 --- Interactively save the current window layout as a tabset.
@@ -429,7 +432,7 @@ function M.save_tabset(window)
   local data = retrieve_tabset_data(window)
 
   window:perform_action(act.PromptInputLine {
-    description = "Enter tabset name",
+    description = "Enter tabset name:",
     action = wezterm.action_callback(function(_, _, name)
       if not is_valid_tabset_name(name) then
         log_and_notify(window, "Invalid tabset name '" .. name .. "'.", { error = true })
@@ -473,7 +476,7 @@ function M.rename_tabset(window)
           end),
         }, window:active_pane())
       end
-    end)
+    end, "Select tabset to rename:")
 end
 
 --- Initialize plugin and set configuration options.
