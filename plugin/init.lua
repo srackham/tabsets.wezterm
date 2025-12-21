@@ -41,8 +41,6 @@ end
 local fs = require 'tabsets.fs'
 
 local M = {}
---- @type string|nil
-M.most_recent_tabset = nil -- The name of the most recently loaded, saved or renamed tabset
 
 --- @class InputSelectorChoice
 --- @field id string
@@ -329,7 +327,6 @@ function M.load_tabset_by_name(window, tabset_name)
   end
 
   if recreate_tabset(window, tabset_data) then
-    M.most_recent_tabset = tabset_name
     display_notification(window, "Tabset loaded '" .. tabset_name .. "'.")
   else
     -- FIXME: report the actual logged error: devise a better logging + notification system
@@ -354,13 +351,7 @@ local function tabset_action(window, callback)
     f = basename(f)
     if f:match("%.tabset%.json$") then
       local name = f:gsub("%.tabset%.json$", "")
-      local label
-      if name == M.most_recent_tabset then
-        label = wezterm.format { { Foreground = { Color = "white" } }, { Attribute = { Intensity = "Bold" } }, { Text = name } }
-      else
-        label = name
-      end
-      table.insert(choices, { id = name, label = label })
+      table.insert(choices, { id = name, label = name })
     end
   end
 
@@ -402,7 +393,6 @@ function M.delete_tabset(window)
       if name then
         local f = tabset_file(name)
         if fs.rm(f) then
-          M.most_recent_tabset = nil -- Invalidate tabset name
           display_notification(window, "Deleted tabset '" .. name .. "'.")
         else
           wezterm.log_error("Failed to delete tabsets file '" .. f .. "'.")
@@ -420,7 +410,6 @@ function M.save_tabset(window)
 
   window:perform_action(act.PromptInputLine {
     description = "Enter tabset name",
-    initial_value = M.most_recent_tabset or "",
     action = wezterm.action_callback(function(_, _, name)
       if not is_valid_tabset_name(name) then
         display_notification(window, "Invalid tabset name '" .. name .. "'.")
@@ -428,7 +417,6 @@ function M.save_tabset(window)
       end
       local data_file = tabset_file(name)
       if save_to_json_file(data, data_file) then
-        M.most_recent_tabset = name
         display_notification(window, "Tabset '" .. name .. "' saved successfully.")
       else
         display_notification(window, "Failed to save '" .. data_file .. "'.")
