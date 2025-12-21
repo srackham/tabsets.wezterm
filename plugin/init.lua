@@ -6,6 +6,15 @@
 local wezterm = require 'wezterm'
 local act = wezterm.action
 
+local plugin_name = "tabsets.wezterm"
+
+local function log_info(message)
+  wezterm.log_info(plugin_name .. ": " .. message)
+end
+local function log_error(message)
+  wezterm.log_error(plugin_name .. ": " .. message)
+end
+
 --- Updates Lua's `package.path` to include the `./plugin` directory of the specified WezTerm plugin.
 --- See [Managing a Plugin with Multiple Lua Modules](https://wezterm.org/config/plugins.html#managing-a-plugin-with-multiple-lua-modules).
 --- @function update_plugin_path
@@ -20,26 +29,25 @@ local function update_plugin_path(plugin_url)
 
       -- Avoid appending if the path is already registered
       if package.path:find(standard_pattern, 1, true) then
-        wezterm.log_info('Skipped updating existing package.path for plugin: ' .. plugin.url)
+        log_info('Skipped updating existing package.path for plugin: ' .. plugin.url)
         return true
       end
 
       local path_update = standard_pattern .. ";" .. init_pattern
       package.path = package.path .. ";" .. path_update
-      wezterm.log_info("Updated package.path for plugin: " .. path_update)
+      log_info("Updated package.path for plugin: " .. path_update)
       return true
     end
   end
-  wezterm.log_error('No plugin found matching: ' .. plugin_url)
+  log_error('No plugin found matching: ' .. plugin_url)
   return false
 end
 
-if not update_plugin_path("tabsets.wezterm") then
+if not update_plugin_path(plugin_name) then
   return {}
 end
 
 local fs = require 'tabsets.fs'
-
 local M = {}
 
 --- @class InputSelectorChoice
@@ -109,23 +117,36 @@ local function resolve_executable(path)
   if shell_path then
     return shell_path
   end
-  wezterm.log_error("Failed to resolve executable '" .. path .. "'.")
+  log_error("Failed to resolve executable '" .. path .. "'.")
   return nil
 end
 
+---@class LogAndNotifyOpts
+---@field error? boolean  -- If true, log error and prefix toast message with "FAILED:"
+
 --- Log a message and display it as a desktop notification.
---- Uses `notify-send` as a workaround for non-expiring toast notifications.
+--- If installed, uses `notify-send` as a workaround for non-expiring toast notifications.
 --- @param window wezterm.window Current wezterm window
 --- @param message string Message text to display
-local function display_notification(window, message)
-  wezterm.log_info(message)
-  -- FIXME: toast_notification does not time out, workaround by running `notify-send` CLI instead
-  -- window:toast_notification("tabsets.wezterm", message, nil, 4000)
-  wezterm.run_child_process {
-    "bash", "-c",
-    "notify-send -a 'tabsets.wezterm' -t 4000 -u normal '" ..
-    message:gsub("'", "'\"'\"'") .. "'",
-  }
+--- @param opts? LogAndNotifyOpts Optional notification options
+local function log_and_notify(window, message, opts)
+  opts = opts or {}
+  if opts.error then
+    log_error(message)
+    message = "FAILED: " .. message
+  else
+    log_info(message)
+  end
+  if fs.which('notify-send') then
+    -- WezTerm window:toast_notification does not time out, workaround by running `notify-send` CLI instead
+    wezterm.run_child_process {
+      "bash", "-c",
+      "notify-send -a '" .. plugin_name .. "' -t 4000 -u normal '" ..
+      message:gsub("'", "'\"'\"'") .. "'",
+    }
+  else
+    window:toast_notification(plugin_name, message, nil, 4000)
+  end
 end
 
 --- @class TabsetData
@@ -190,7 +211,7 @@ end
 --- @return boolean #True on success, false on failure
 local function save_to_json_file(data, file_path)
   if not data then
-    wezterm.log_error("No tabset data to save.")
+    log_error("No tabset data to save.")
     return false
   end
 
@@ -210,7 +231,7 @@ end
 --- @return boolean #True on successful recreation, false if validation fails
 local function recreate_tabset(window, tabset_data)
   if not tabset_data or not tabset_data.tabs then
-    wezterm.log_error("Invalid or empty tabset data.")
+    log_error("Invalid or empty tabset data.")
     return false
   end
 
@@ -221,7 +242,7 @@ local function recreate_tabset(window, tabset_data)
     local foreground_process = initial_pane:get_foreground_process_name()
     if is_shell(foreground_process) then
       initial_pane:send_text("exit\r")
-      wezterm.log_info("Existing single empty tab closed.")
+      log_info("Existing single empty tab closed.")
       window_is_empty = true
     end
   end
@@ -243,7 +264,7 @@ local function recreate_tabset(window, tabset_data)
 
     local new_tab = window:mux_window():spawn_tab({ cwd = cwd_path })
     if not new_tab then
-      wezterm.log_error("Failed to create a new tab.")
+      log_error("Failed to create a new tab.")
       break
     end
     new_tab:set_title(tab_data.title)
@@ -271,7 +292,7 @@ local function recreate_tabset(window, tabset_data)
       end
 
       if not new_pane then
-        wezterm.log_error("Failed to create a new pane.")
+        log_error("Failed to create a new pane.")
         goto continue
       end
 
@@ -287,7 +308,7 @@ local function recreate_tabset(window, tabset_data)
     first_pane:activate()
   end
 
-  wezterm.log_info("Tabset recreated.")
+  log_info("Tabset recreated.")
   return true
 end
 
@@ -298,7 +319,7 @@ end
 local function load_from_json_file(file_path)
   local file = io.open(file_path, "r")
   if not file then
-    wezterm.log_error("Failed to open file '" .. file_path .. "'.")
+    log_error("Failed to open file '" .. file_path .. "'.")
     return nil
   end
 
@@ -307,7 +328,7 @@ local function load_from_json_file(file_path)
 
   local data = wezterm.json_parse(file_content)
   if not data then
-    wezterm.log_error("Failed to parse JSON data from tabset file '" .. file_path .. "'.")
+    log_error("Failed to parse JSON data from tabset file '" .. file_path .. "'.")
   end
   --- @cast data TabsetData|nil
   return data
@@ -322,15 +343,14 @@ function M.load_tabset_by_name(window, tabset_name)
 
   local tabset_data = load_from_json_file(file_path)
   if not tabset_data then
-    display_notification(window, "Tabset file not found '" .. file_path .. "'.")
+    log_and_notify(window, "Tabset file not found '" .. file_path .. "'.", { error = true })
     return
   end
 
   if recreate_tabset(window, tabset_data) then
-    display_notification(window, "Tabset loaded '" .. tabset_name .. "'.")
+    log_and_notify(window, "Tabset loaded '" .. tabset_name .. "'.")
   else
-    -- FIXME: report the actual logged error: devise a better logging + notification system
-    display_notification(window, "Tabset loading failed '" .. tabset_name .. "'.")
+    log_and_notify(window, "Tabset loading failed '" .. tabset_name .. "'.", { error = true })
   end
 end
 
@@ -344,7 +364,7 @@ local function tabset_action(window, callback)
   local choices = {}
   local ok, files = pcall(wezterm.read_dir, M.options.tabsets_dir)
   if not ok then
-    display_notification(window, "Failed to read tabsets directory '" .. M.options.tabsets_dir .. "'.")
+    log_and_notify(window, "Could not read tabsets directory '" .. M.options.tabsets_dir .. "'.", { error = true })
     return
   end
   for _, f in ipairs(files) do
@@ -356,7 +376,7 @@ local function tabset_action(window, callback)
   end
 
   if #choices == 0 then
-    display_notification(window, "No saved tabset files found.")
+    log_and_notify(window, "No saved tabset files found.")
     return
   end
 
@@ -393,9 +413,9 @@ function M.delete_tabset(window)
       if name then
         local f = tabset_file(name)
         if fs.rm(f) then
-          display_notification(window, "Deleted tabset '" .. name .. "'.")
+          log_and_notify(window, "Deleted tabset '" .. name .. "'.")
         else
-          wezterm.log_error("Failed to delete tabsets file '" .. f .. "'.")
+          log_and_notify(window, "Unable to delete tabsets file '" .. f .. "'.", { error = true })
         end
       end
     end)
@@ -412,14 +432,14 @@ function M.save_tabset(window)
     description = "Enter tabset name",
     action = wezterm.action_callback(function(_, _, name)
       if not is_valid_tabset_name(name) then
-        display_notification(window, "Invalid tabset name '" .. name .. "'.")
+        log_and_notify(window, "Invalid tabset name '" .. name .. "'.", { error = true })
         return
       end
       local data_file = tabset_file(name)
       if save_to_json_file(data, data_file) then
-        display_notification(window, "Tabset '" .. name .. "' saved successfully.")
+        log_and_notify(window, "Tabset '" .. name .. "' saved successfully.")
       else
-        display_notification(window, "Failed to save '" .. data_file .. "'.")
+        log_and_notify(window, "Unable to save '" .. data_file .. "'.", { error = true })
       end
     end),
   }, window:active_pane())
@@ -435,15 +455,20 @@ function M.rename_tabset(window)
           description = "Enter new tabset name",
           action = wezterm.action_callback(function(_, _, new_name)
             if not is_valid_tabset_name(new_name) then
-              display_notification(window, "Invalid tabset name '" .. new_name .. "'.")
+              log_and_notify(window, "Invalid tabset name '" .. new_name .. "'.", { error = true })
               return
             end
             local old_file = tabset_file(old_name)
             local new_file = tabset_file(new_name)
+            if fs.is_path(new_file) then
+              log_and_notify(window, "Tabset '" .. new_name .. "' already exists.", { error = true })
+              return
+            end
             if fs.mv(old_file, new_file) then
-              display_notification(window, "Tabset '" .. old_name .. "' successfully renamed to '" .. new_name .. "'.")
+              log_and_notify(window, "Tabset '" .. old_name .. "' successfully renamed to '" .. new_name .. "'.")
             else
-              display_notification(window, "Failed to rename '" .. old_file .. "' to '" .. new_file .. "'.")
+              log_and_notify(window, "Unable to rename '" .. old_file .. "' to '" .. new_file .. "'.",
+                { error = true })
             end
           end),
         }, window:active_pane())
@@ -457,16 +482,16 @@ function M.setup(opts)
   opts = opts or {}
   -- Set default tabsets directory
   if not opts.tabsets_dir then
-    opts.tabsets_dir = wezterm.config_dir .. "/tabsets.wezterm"
+    opts.tabsets_dir = wezterm.config_dir .. "/" .. plugin_name
   end
   -- Create the tabsets directory if it does not exist
   --- @type string
   local dir = opts.tabsets_dir
   if not fs.is_directory(dir) then
     if fs.mkdir(dir) then
-      wezterm.log_info("Created tabsets directory '" .. dir .. "'.")
+      log_info("Created tabsets directory '" .. dir .. "'.")
     else
-      wezterm.log_error("Failed to create tabsets directory '" .. dir .. "'.")
+      log_error("Failed to create tabsets directory '" .. dir .. "'.")
     end
   end
   opts.fuzzy_selector = opts.fuzzy_selector or false
