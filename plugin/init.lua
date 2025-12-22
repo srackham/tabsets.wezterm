@@ -136,11 +136,7 @@ local function log_and_notify(window, message, opts)
   end
   if fs.which "notify-send" then
     -- WezTerm window:toast_notification does not time out, workaround by running `notify-send` CLI instead
-    wezterm.run_child_process {
-      "bash",
-      "-c",
-      "notify-send -a '" .. plugin_name .. "' -t 4000 -u normal '" .. message:gsub("'", "'\"'\"'") .. "'",
-    }
+    wezterm.run_child_process { "notify-send", "-a", plugin_name, "-t", "4000", "-u", "normal", message }
   else
     window:toast_notification(plugin_name, message, nil, 4000)
   end
