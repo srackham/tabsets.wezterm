@@ -129,4 +129,13 @@ function fs.mv(src_path, dst_path)
   return true
 end
 
+--- Extract the final path component from a filesystem path.
+--- Given `/foo/bar.txt` returns `bar.txt`.
+--- Given `c:\\foo\\bar` returns `bar`.
+--- @param s string Full path string
+--- @return string #Basename component
+function fs.basename(s)
+  return (string.gsub(s, "(.*[/\\])(.*)", "%2"))
+end
+
 return fs

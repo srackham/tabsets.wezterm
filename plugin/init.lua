@@ -1,4 +1,4 @@
---- @module 'tabsets'
+--- @module "tabsets"
 --- @brief A WezTerm plugin to save and load named tab sets
 
 --- @diagnostic enable -- Enable/disable LuaCATS annotations diagnostics
@@ -61,15 +61,6 @@ local M = {}
 --- @field fuzzy_selector? boolean Fuzzy match tabset name selection
 M.options = {} -- Setup() configuration options.
 
---- Extract the final path component from a filesystem path.
---- Given `/foo/bar` returns `bar`.
---- Given `c:\\foo\\bar` returns `bar`.
---- @param s string Full path string
---- @return string #Basename component
-local function basename(s)
-  return (string.gsub(s, "(.*[/\\])(.*)", "%2"))
-end
-
 --- Check whether a tabset name only contains allowed characters.
 --- Allowed characters are alphanumeric plus `+- ._` and space.
 --- @param name string Tabset name to validate
@@ -97,7 +88,7 @@ end
 local function is_shell(file_path)
   local shells = { "sh", "bash", "zsh", "fish", "nu", "dash", "csh", "ksh" }
   for _, shell in ipairs(shells) do
-    if basename(file_path) == shell then
+    if fs.basename(file_path) == shell then
       return true
     end
   end
@@ -119,7 +110,7 @@ local function resolve_executable(path)
   if fs.is_executable(path) then
     return path
   end
-  local shell_path = fs.which(path)
+  local shell_path = fs.which(fs.basename(path))
   if shell_path then
     return shell_path
   end
@@ -253,13 +244,19 @@ local function recreate_tabset(window, tabset_data)
     end
   end
 
-  -- Restore window size and colors
   if window_is_empty then
+    -- Restore window colors
     if M.options.restore_colors then
       window:set_config_overrides { colors = tabset_data.colors or {} }
     end
+    -- Restore window size
     if M.options.restore_dimensions then
-      window:set_inner_size(tabset_data.window_width, tabset_data.window_height)
+      local screen = wezterm.gui.screens().main
+      if tabset_data.window_width > screen.width or tabset_data.window_height > screen.height then
+        log_info "Skipping window size restoration: the saved window size exceeds the size of the screen."
+      else
+        window:set_inner_size(tabset_data.window_width, tabset_data.window_height)
+      end
     end
   end
 
@@ -375,7 +372,7 @@ local function tabset_action(window, callback, prompt)
     return
   end
   for _, f in ipairs(files) do
-    f = basename(f)
+    f = fs.basename(f)
     if f:match "%.tabset%.json$" then
       local name = f:gsub("%.tabset%.json$", "")
       table.insert(choices, { id = name, label = name })
