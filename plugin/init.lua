@@ -3,7 +3,7 @@
 
 --- @diagnostic enable -- Enable/disable LuaCATS annotations diagnostics
 
-local wezterm = require 'wezterm'
+local wezterm = require "wezterm"
 local act = wezterm.action
 
 local plugin_name = "tabsets.wezterm"
@@ -29,7 +29,7 @@ local function update_plugin_path(plugin_url)
 
       -- Avoid appending if the path is already registered
       if package.path:find(standard_pattern, 1, true) then
-        log_info('Skipped updating existing package.path for plugin: ' .. plugin.url)
+        log_info("Skipped updating existing package.path for plugin: " .. plugin.url)
         return true
       end
 
@@ -39,7 +39,7 @@ local function update_plugin_path(plugin_url)
       return true
     end
   end
-  log_error('No plugin found matching: ' .. plugin_url)
+  log_error("No plugin found matching: " .. plugin_url)
   return false
 end
 
@@ -47,7 +47,7 @@ if not update_plugin_path(plugin_name) then
   return {}
 end
 
-local fs = require 'tabsets.fs'
+local fs = require "tabsets.fs"
 local M = {}
 
 --- @class InputSelectorChoice
@@ -75,7 +75,11 @@ end
 --- @param name string Tabset name to validate
 --- @return boolean #True if the name is valid, false otherwise
 local function is_valid_tabset_name(name)
-  if name:match("^[%w%+%.%-_%s]+$") then return true else return false end
+  if name:match "^[%w%+%.%-_%s]+$" then
+    return true
+  else
+    return false
+  end
 end
 
 --- Build the full path to a tabset file from its name.
@@ -93,7 +97,9 @@ end
 local function is_shell(file_path)
   local shells = { "sh", "bash", "zsh", "fish", "nu", "dash", "csh", "ksh" }
   for _, shell in ipairs(shells) do
-    if basename(file_path) == shell then return true end
+    if basename(file_path) == shell then
+      return true
+    end
   end
   return false
 end
@@ -137,12 +143,12 @@ local function log_and_notify(window, message, opts)
   else
     log_info(message)
   end
-  if fs.which('notify-send') then
+  if fs.which "notify-send" then
     -- WezTerm window:toast_notification does not time out, workaround by running `notify-send` CLI instead
     wezterm.run_child_process {
-      "bash", "-c",
-      "notify-send -a '" .. plugin_name .. "' -t 4000 -u normal '" ..
-      message:gsub("'", "'\"'\"'") .. "'",
+      "bash",
+      "-c",
+      "notify-send -a '" .. plugin_name .. "' -t 4000 -u normal '" .. message:gsub("'", "'\"'\"'") .. "'",
     }
   else
     window:toast_notification(plugin_name, message, nil, 4000)
@@ -177,7 +183,7 @@ local function retrieve_tabset_data(window)
     window_width = dims.pixel_width,   -- the width of the window in pixels
     window_height = dims.pixel_height, -- the height of the window in pixels
     colors = cfg.colors,
-    tabs = {}
+    tabs = {},
   }
 
   -- Iterate over tabs in the current window
@@ -211,7 +217,7 @@ end
 --- @return boolean #True on success, false on failure
 local function save_to_json_file(data, file_path)
   if not data then
-    log_error("No tabset data to save.")
+    log_error "No tabset data to save."
     return false
   end
 
@@ -231,7 +237,7 @@ end
 --- @return boolean #True on successful recreation, false if validation fails
 local function recreate_tabset(window, tabset_data)
   if not tabset_data or not tabset_data.tabs then
-    log_error("Invalid or empty tabset data.")
+    log_error "Invalid or empty tabset data."
     return false
   end
 
@@ -241,8 +247,8 @@ local function recreate_tabset(window, tabset_data)
     local initial_pane = window:active_pane()
     local foreground_process = initial_pane:get_foreground_process_name()
     if is_shell(foreground_process) then
-      initial_pane:send_text("exit\r")
-      log_info("Existing single empty tab closed.")
+      initial_pane:send_text "exit\r"
+      log_info "Existing single empty tab closed."
       window_is_empty = true
     end
   end
@@ -250,7 +256,7 @@ local function recreate_tabset(window, tabset_data)
   -- Restore window size and colors
   if window_is_empty then
     if M.options.restore_colors then
-      window:set_config_overrides({ colors = tabset_data.colors or {} })
+      window:set_config_overrides { colors = tabset_data.colors or {} }
     end
     if M.options.restore_dimensions then
       window:set_inner_size(tabset_data.window_width, tabset_data.window_height)
@@ -262,9 +268,9 @@ local function recreate_tabset(window, tabset_data)
     local cwd_uri = tab_data.panes[1].cwd
     local cwd_path = extract_path_from_uri(cwd_uri)
 
-    local new_tab = window:mux_window():spawn_tab({ cwd = cwd_path })
+    local new_tab = window:mux_window():spawn_tab { cwd = cwd_path }
     if not new_tab then
-      log_error("Failed to create a new tab.")
+      log_error "Failed to create a new tab."
       break
     end
     new_tab:set_title(tab_data.title)
@@ -285,14 +291,14 @@ local function recreate_tabset(window, tabset_data)
           direction = "Bottom"
         end
 
-        new_pane = new_tab:active_pane():split({
+        new_pane = new_tab:active_pane():split {
           direction = direction,
           cwd = extract_path_from_uri(pane_data.cwd),
-        })
+        }
       end
 
       if not new_pane then
-        log_error("Failed to create a new pane.")
+        log_error "Failed to create a new pane."
         goto continue
       end
 
@@ -308,7 +314,7 @@ local function recreate_tabset(window, tabset_data)
     first_pane:activate()
   end
 
-  log_info("Tabset recreated.")
+  log_info "Tabset recreated."
   return true
 end
 
@@ -323,7 +329,7 @@ local function load_from_json_file(file_path)
     return nil
   end
 
-  local file_content = file:read("*a")
+  local file_content = file:read "*a"
   file:close()
 
   local data = wezterm.json_parse(file_content)
@@ -370,7 +376,7 @@ local function tabset_action(window, callback, prompt)
   end
   for _, f in ipairs(files) do
     f = basename(f)
-    if f:match("%.tabset%.json$") then
+    if f:match "%.tabset%.json$" then
       local name = f:gsub("%.tabset%.json$", "")
       table.insert(choices, { id = name, label = name })
     end
@@ -385,43 +391,44 @@ local function tabset_action(window, callback, prompt)
     return a.id < b.id
   end)
 
-  window:perform_action(act.InputSelector {
-    description = prompt,
-    fuzzy_description = prompt,
-    choices = choices,
-    action = wezterm.action_callback(callback),
-    fuzzy = M.options.fuzzy_selector,
-  }, window:active_pane())
+  window:perform_action(
+    act.InputSelector {
+      description = prompt,
+      fuzzy_description = prompt,
+      choices = choices,
+      action = wezterm.action_callback(callback),
+      fuzzy = M.options.fuzzy_selector,
+    },
+    window:active_pane()
+  )
 end
 
 --- Interactively load a saved tabset.
 --- Shows a selector of available tabsets, then calls @{load_tabset_by_name} on the chosen entry.
 --- @param window wezterm.window Active wezterm window
 function M.load_tabset(window)
-  tabset_action(window,
-    function(_, _, tabset_name)
-      if tabset_name then
-        -- @type string
-        M.load_tabset_by_name(window, tabset_name)
-      end
-    end, "Select tabset to load:")
+  tabset_action(window, function(_, _, tabset_name)
+    if tabset_name then
+      -- @type string
+      M.load_tabset_by_name(window, tabset_name)
+    end
+  end, "Select tabset to load:")
 end
 
 --- Interactively delete a saved tabset.
 --- Prompts for a tabset, deletes the corresponding JSON file and notifies the user.
 --- @param window wezterm.window Active wezterm window
 function M.delete_tabset(window)
-  tabset_action(window,
-    function(_, _, name)
-      if name then
-        local f = tabset_file(name)
-        if fs.rm(f) then
-          log_and_notify(window, "Deleted tabset '" .. name .. "'.")
-        else
-          log_and_notify(window, "Unable to delete tabsets file '" .. f .. "'.", { error = true })
-        end
+  tabset_action(window, function(_, _, name)
+    if name then
+      local f = tabset_file(name)
+      if fs.rm(f) then
+        log_and_notify(window, "Deleted tabset '" .. name .. "'.")
+      else
+        log_and_notify(window, "Unable to delete tabsets file '" .. f .. "'.", { error = true })
       end
-    end, "Select tabset to delete:")
+    end
+  end, "Select tabset to delete:")
 end
 
 --- Interactively save the current window layout as a tabset.
@@ -431,30 +438,33 @@ function M.save_tabset(window)
   --- @type TabsetData
   local data = retrieve_tabset_data(window)
 
-  window:perform_action(act.PromptInputLine {
-    description = "Enter tabset name:",
-    action = wezterm.action_callback(function(_, _, name)
-      if not is_valid_tabset_name(name) then
-        log_and_notify(window, "Invalid tabset name '" .. name .. "'.", { error = true })
-        return
-      end
-      local data_file = tabset_file(name)
-      if save_to_json_file(data, data_file) then
-        log_and_notify(window, "Tabset '" .. name .. "' saved successfully.")
-      else
-        log_and_notify(window, "Unable to save '" .. data_file .. "'.", { error = true })
-      end
-    end),
-  }, window:active_pane())
+  window:perform_action(
+    act.PromptInputLine {
+      description = "Enter tabset name:",
+      action = wezterm.action_callback(function(_, _, name)
+        if not is_valid_tabset_name(name) then
+          log_and_notify(window, "Invalid tabset name '" .. name .. "'.", { error = true })
+          return
+        end
+        local data_file = tabset_file(name)
+        if save_to_json_file(data, data_file) then
+          log_and_notify(window, "Tabset '" .. name .. "' saved successfully.")
+        else
+          log_and_notify(window, "Unable to save '" .. data_file .. "'.", { error = true })
+        end
+      end),
+    },
+    window:active_pane()
+  )
 end
 
 --- Rename a tabset.
 --- @param window wezterm.window Active wezterm window
 function M.rename_tabset(window)
-  tabset_action(window,
-    function(_, _, old_name)
-      if old_name then
-        window:perform_action(act.PromptInputLine {
+  tabset_action(window, function(_, _, old_name)
+    if old_name then
+      window:perform_action(
+        act.PromptInputLine {
           description = "Enter new tabset name",
           action = wezterm.action_callback(function(_, _, new_name)
             if not is_valid_tabset_name(new_name) then
@@ -470,13 +480,14 @@ function M.rename_tabset(window)
             if fs.mv(old_file, new_file) then
               log_and_notify(window, "Tabset '" .. old_name .. "' successfully renamed to '" .. new_name .. "'.")
             else
-              log_and_notify(window, "Unable to rename '" .. old_file .. "' to '" .. new_file .. "'.",
-                { error = true })
+              log_and_notify(window, "Unable to rename '" .. old_file .. "' to '" .. new_file .. "'.", { error = true })
             end
           end),
-        }, window:active_pane())
-      end
-    end, "Select tabset to rename:")
+        },
+        window:active_pane()
+      )
+    end
+  end, "Select tabset to rename:")
 end
 
 --- Initialize plugin and set configuration options.
