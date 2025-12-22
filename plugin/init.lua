@@ -167,7 +167,7 @@ local function retrieve_tabset_data(window)
 
   --- @type TabsetData
   local tabset_data = {
-    window_width = dims.pixel_width,   -- the width of the window in pixels
+    window_width = dims.pixel_width, -- the width of the window in pixels
     window_height = dims.pixel_height, -- the height of the window in pixels
     colors = cfg.colors,
     tabs = {},

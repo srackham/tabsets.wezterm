@@ -4,15 +4,15 @@ A WezTerm plugin to save and load named tab sets.
 
 ## Features
 
-- Commands to load, save, rename and delete named tab layouts.
-- Saves current window layout (tabs, panes, tab names, working directories, foreground processes, window dimensions, custom colors) to named JSON files.
+Commands to load, save, rename and delete named sets of tabs.
 
 ## Usage
 
-- Use key bindings or palette commands to save, load and delete tabsets †.
-- Tabs are appended to the current window.
-- If the window is empty (only contains a single empty tab) then the empty tab is deleted and, optionally, window dimensions and custom colors are restored.
-- Tabsets are stored as `.tabset.json` files in `~/.config/wezterm/tabsets.wezterm/` †.
+- Use key bindings or palette commands to save, load, rename and delete tabsets †.
+- Loaded tabs are appended to the current window.
+- If the window is empty (only contains a single empty tab) then the empty tab is deleted.
+- If the window is empty window dimensions and custom colors are optionally restored.
+- Tabsets are stored as JSON files with a `.tabset.json` file name extension in the `~/.config/wezterm/tabsets.wezterm/` directory †.
 
 † See _Installation and Configuration_.
 
@@ -23,12 +23,12 @@ A WezTerm plugin to save and load named tab sets.
 
 ## Limitations
 
-- Tabsets are confined to a single window by design.
+- Tabsets span a single WezTerm window.
 - Panes are recreated with splits; manually resized panes are restored to their default split size.
 
 ## Installation and Configuration
 
-Install plugin by adding this to your `wezterm.lua` configuration file:
+Add the following code to your `wezterm.lua` configuration file:
 
 ```
 
@@ -59,10 +59,11 @@ wezterm.on("delete_tabset", function(window) tabsets.delete_tabset(window) end)
 wezterm.on("rename_tabset", function(window) tabsets.rename_tabset(window) end)
 
 for _, v in ipairs({
-  { key = "S", mods = "LEADER", action = wezterm.action { EmitEvent = "save_tabset" } },
-  { key = "L", mods = "LEADER", action = wezterm.action { EmitEvent = "load_tabset" } },
-  { key = "D", mods = "LEADER", action = wezterm.action { EmitEvent = "delete_tabset" } },
-  { key = "R", mods = "LEADER", action = wezterm.action { EmitEvent = "rename_tabset" } },
+  { key = "S", mods = "LEADER|SHIFT", action = wezterm.action { EmitEvent = "save_tabset" } },
+  { key = "L", mods = "LEADER|SHIFT", action = wezterm.action { EmitEvent = "load_tabset" } },
+  { key = "D", mods = "LEADER|SHIFT", action = wezterm.action { EmitEvent = "delete_tabset" } },
+  { key = "R", mods = "LEADER|SHIFT", action = wezterm.action { EmitEvent = "rename_tabset" } },
+  { key = "T", mods = "LEADER|SHIFT", action = wezterm.action { EmitEvent = "default_tabset" } },
 })
 do table.insert(config.keys, v) end
 ```
