@@ -10,8 +10,8 @@ Commands to load, save, rename and delete named sets of tabs.
 
 - Use key bindings or palette commands to save, load, rename and delete tabsets †.
 - Loaded tabs are appended to the current window.
-- If the window is empty (only contains a single empty tab) then the empty tab is deleted.
-- If the window is empty window dimensions and custom colors are optionally restored.
+- If the window is empty (only contains a single empty tab), then the empty tab is deleted.
+- If the window is empty, then window dimensions and custom colors are optionally restored.
 - Tabsets are stored as JSON files with a `.tabset.json` file name extension in the `~/.config/wezterm/tabsets.wezterm/` directory †.
 
 † See _Installation and Configuration_.
@@ -63,7 +63,6 @@ for _, v in ipairs({
   { key = "L", mods = "LEADER|SHIFT", action = wezterm.action { EmitEvent = "load_tabset" } },
   { key = "D", mods = "LEADER|SHIFT", action = wezterm.action { EmitEvent = "delete_tabset" } },
   { key = "R", mods = "LEADER|SHIFT", action = wezterm.action { EmitEvent = "rename_tabset" } },
-  { key = "T", mods = "LEADER|SHIFT", action = wezterm.action { EmitEvent = "default_tabset" } },
 })
 do table.insert(config.keys, v) end
 ```
