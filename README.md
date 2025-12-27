@@ -70,6 +70,9 @@ do table.insert(config.keys, v) end
 Optional tabsets Palette bindings:
 
 ```
+-- Palette commands are accumulated in this table and then installed with the "augment-command-palette" event
+local palette_commands = {}
+
 -- Add tabsets Palette bindings
 for _, v in ipairs({
   {
