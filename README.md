@@ -1,5 +1,8 @@
 # tabsets.wezterm
 
+> [!IMPORTANT]
+> This plugin is no longer maintained. Take a look at [this Gist](https://gist.github.com/srackham/2004f9a0ac4e555deba548c2e7549f2b), it is more flexible, less complex. No plugins required, just paste it into the `wezterm.lua` configuration file.
+
 A WezTerm plugin to save and load named tab sets.
 
 ## Features
